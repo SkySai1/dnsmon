@@ -1,0 +1,5 @@
+dnspython==2.3.0
+greenlet==2.0.1
+psycopg2==2.9.5
+python3-resolver==1.0.3
+SQLAlchemy==1.4.46
