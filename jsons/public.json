@@ -1,0 +1,422 @@
+{
+    "Europe":{
+        "Netherlands":{
+            "185.81.8.252": {
+                "Latitude": 52.0706,
+                "Longitude": 5.0769
+            },
+            "86.105.252.193": {
+                "Latitude": 52.5275,
+                "Longitude": 5.7271
+            }
+        },
+        "Germany":{
+            "213.30.235.34": {
+                "Latitude": 52.5078,
+                "Longitude": 13.4326
+            },
+            "195.201.86.188": {
+                "Latitude": 49.1156,
+                "Longitude": 10.7511
+            }
+        },
+        "Poland":{
+            "195.136.163.57": {
+                "Latitude": 51.9795,
+                "Longitude": 21.2006
+            },
+            "84.10.40.158": {
+                "Latitude": 52.2296,
+                "Longitude": 21.0067
+            }
+        },
+        "Romania":{
+            "188.27.244.73": {
+                "Latitude": 45.6524,
+                "Longitude": 25.6109
+            },
+            "92.81.135.94": {
+                "Latitude": 44.405,
+                "Longitude": 26.0718
+            }
+        },
+        "Czechia":{
+            "188.116.91.246": {
+                "Latitude": 49.9616,
+                "Longitude": 16.9716
+            },
+            "188.122.212.67": {
+                "Latitude": 50.2334,
+                "Longitude": 15.8598
+            }
+        },
+        "Belarus":{
+            "195.222.86.106": {
+                "Latitude": 53.9007,
+                "Longitude": 27.5709
+            },
+            "194.158.209.165": {
+                "Latitude": 53.9811,
+                "Longitude": 27.2697
+            }
+        },
+        "Italy":{
+            "93.149.70.82": {
+                "Latitude": 44.488,
+                "Longitude": 11.3752
+            },
+            "62.11.36.105": {
+                "Latitude": 41.8904,
+                "Longitude": 12.5126
+            }
+        },
+        "France":{
+            "217.109.148.38": {
+                "Latitude": 43.6046,
+                "Longitude": 1.4451
+            },
+            "93.174.39.248": {
+                "Latitude": 48.8323,
+                "Longitude": 2.4075
+            }
+        },
+        "Austria":{
+            "83.65.242.41": {
+                "Latitude": 47.3497,
+                "Longitude": 11.8454
+            },
+            "195.234.100.25": {
+                "Latitude": 48.2343,
+                "Longitude": 16.293
+            }
+        },
+        "Serbia":{
+            "77.46.148.97": {
+                "Latitude": 44.8166,
+                "Longitude": 20.4721
+            },
+            "195.178.56.180": {
+                "Latitude": 44.6675,
+                "Longitude": 20.9209
+            }
+        },
+        "Switzerland":{
+            "34.65.77.163": {
+                "Latitude": 47.3682,
+                "Longitude": 8.5671
+            },
+            "46.14.17.137": {
+                "Latitude": 46.7051,
+                "Longitude": 6.5608
+            }
+        },
+        "Slovakia":{
+            "87.197.154.105": {
+                "Latitude": 48.3762,
+                "Longitude": 17.5829
+            },
+            "195.98.28.166": {
+                "Latitude": 48.156,
+                "Longitude": 17.3024
+            }
+        },
+        "Lithuania":{
+            "88.119.87.88": {
+                "Latitude": 54.6816,
+                "Longitude": 25.3225
+            },
+            "5.20.82.73": {
+                "Latitude": 54.4028,
+                "Longitude": 24.0528
+            }
+        },
+        "Latvia":{
+            "86.63.169.194": {
+                "Latitude": 56.9496,
+                "Longitude": 24.0978
+            },
+            "94.101.234.184": {
+                "Latitude": 56.9575,
+                "Longitude": 23.7467
+            }
+        },
+        "Portugal":{
+            "161.230.206.26": {
+                "Latitude": 38.731,
+                "Longitude": -9.1373
+            },
+            "62.28.50.223": {
+                "Latitude": 41.6442,
+                "Longitude": -8.4373
+            }
+        },
+        "Greece":{
+            "91.138.171.138": {
+                "Latitude": 38.2475,
+                "Longitude": 21.7311
+            },
+            "79.129.121.90": {
+                "Latitude": 37.9842,
+                "Longitude": 23.7353
+            }
+        },
+        "Hungary":{
+            "94.248.172.126": {
+                "Latitude": 47.2568,
+                "Longitude": 16.9375
+            },
+            "212.108.194.4": {
+                "Latitude": 47.1985,
+                "Longitude": 21.0036
+            }
+        },
+        "Croatia":{
+            "85.114.40.50": {
+                "Latitude": 45.8293,
+                "Longitude": 15.9793
+            },
+            "109.227.25.67": {
+                "Latitude": 45.9167,
+                "Longitude": 16.0833
+            }
+        },
+        "Bosnia And Herzegovina":{
+            "217.23.199.77": {
+                "Latitude": 44.776,
+                "Longitude": 17.1995
+            },
+            "77.238.209.242": {
+                "Latitude": 44.1678,
+                "Longitude": 17.6563
+            }
+        },
+        "Albania":{
+            "217.21.151.29": {
+                "Latitude":  40.4708,
+                "Longitude": 19.4914
+            },
+            "192.109.219.158": {
+                "Latitude": 40.6188,
+                "Longitude": 20.7896
+            }
+        },
+        "North Macedonia":{
+            "78.157.16.186": {
+                "Latitude":  41.9985,
+                "Longitude": 21.4313
+            },
+            "77.28.96.25": {
+                "Latitude": 41.1111,
+                "Longitude": 20.8004
+            }
+        },
+        "Bulgaria":{
+            "194.12.224.14": {
+                "Latitude":  42.6951,
+                "Longitude": 23.325
+            },
+            "217.145.86.12": {
+                "Latitude": 43.2186,
+                "Longitude": 27.9123
+            }
+        },
+        "Spain":{
+            "195.77.235.10": {
+                "Latitude":  40.4163,
+                "Longitude": -3.6934
+            },
+            "194.48.151.237": {
+                "Latitude": 36.9316,
+                "Longitude":  -5.2659
+            }
+        },
+        "Moldova":{
+            "77.89.223.66": {
+                "Latitude":  46.648,
+                "Longitude": 29.4154
+            },
+            "212.28.88.241": {
+                "Latitude": 47.0042,
+                "Longitude":  28.8574
+            }
+        },
+        "United Kingdom":{
+            "212.159.146.232": {
+                "Latitude":  51.7335,
+                "Longitude": -0.5875
+            },
+            "213.78.127.242": {
+                "Latitude": 52.6379,
+                "Longitude": -0.3855
+            }
+        },
+        "Ireland":{
+            "86.43.98.100": {
+                "Latitude":  53.682,
+                "Longitude": -6.2339
+            },
+            "86.43.125.181": {
+                "Latitude": 52.2716,
+                "Longitude": -9.7056
+            }
+        },
+        "Belgium":{
+            "213.119.7.131": {
+                "Latitude":  51.103,
+                "Longitude": 4.2403
+            },
+            "195.189.203.203": {
+                "Latitude": 50.7995,
+                "Longitude":  4.4204
+            }
+        },
+        "Denmark":{
+            "195.137.178.10": {
+                "Latitude":  55.6802,
+                "Longitude": 12.5892
+            },
+            "89.188.72.100": {
+                "Latitude": 56.0393,
+                "Longitude": 9.9313
+            }
+        },
+        "Sweden":{
+            "77.105.230.81": {
+                "Latitude":  57.7132,
+                "Longitude": 12.9025
+            },
+            "178.174.238.53": {
+                "Latitude": 56.049,
+                "Longitude": 14.5862
+            }
+        },
+        "Norway":{
+            "193.91.142.207": {
+                "Latitude":  67.2134,
+                "Longitude": 14.5883
+            },
+            "80.241.81.65": {
+                "Latitude": 59.6565,
+                "Longitude": 10.8157
+            }
+        },
+        "Finland":{
+            "87.92.251.93": {
+                "Latitude":  60.1797,
+                "Longitude": 24.9344
+            },
+            "195.140.195.22": {
+                "Latitude": 60.1797,
+                "Longitude": 24.9344
+            }
+        },
+        "Turkey":{
+            "92.45.23.168": {
+                "Latitude":  41.0145,
+                "Longitude": 28.9533
+            },
+            "176.236.129.141": {
+                "Latitude": 37.3454,
+                "Longitude": 28.1416
+            }
+        }
+    },
+    "Africa":{
+	    "Morocco":{
+            "41.214.184.186": {
+                "Latitude":  33.5922,
+                "Longitude": -7.6184
+            },
+	        "197.230.101.66": {
+                "Latitude": 35.7808,
+                "Longitude": -5.8176
+	    }
+        },
+         "Algeria":{
+            "41.111.153.93": {
+                "Latitude":  36.7295,
+                "Longitude": 3.0905
+            }
+        },
+         "Tunisia":{
+            "196.178.97.52": {
+                "Latitude":  36.6472,
+                "Longitude": 9.6086
+            },
+            "197.13.5.134": {
+                "Latitude": 33.8747,
+                "Longitude": 10.1023
+            }
+        },
+         "Libya":{
+            "165.16.0.105": {
+                "Latitude":  32.8908,
+                "Longitude": 13.1796
+            },
+            "165.16.22.166": {
+                "Latitude": 32.1159,
+                "Longitude": 20.0654
+            }
+        },
+         "Egypt":{
+            "41.129.22.100": {
+                "Latitude":  30.0588,
+                "Longitude": 31.2268
+            },
+            "156.195.121.231": {
+                "Latitude": 28.4163,
+                "Longitude": 30.788
+            }
+        },
+         "Sudan":{
+            "196.1.210.35": {
+                "Latitude":  15.582,
+                "Longitude": 32.537
+            }
+        },
+         "Israel":{
+            "207.232.18.240": {
+                "Latitude":  32.0803,
+                "Longitude": 34.7805
+            },
+            "212.150.241.254": {
+                "Latitude": 32.8983,
+                "Longitude": 35.1617
+            }
+        },
+         "Palestine":{
+            "213.6.32.10": {
+                "Latitude":  32.2207,
+                "Longitude": 35.2542
+            }
+        },
+         "Lebanon":{
+            "77.42.130.37": {
+                "Latitude":  33.874,
+                "Longitude": 35.5089
+            }
+        },
+         "Jordan":{
+            "92.253.127.65": {
+                "Latitude":  31.9522,
+                "Longitude": 35.939
+            }
+        },
+         "Iraq":{
+            "195.7.9.246": {
+                "Latitude":  36.341,
+                "Longitude": 43.1155
+            },
+            "185.217.61.194": {
+                "Latitude":  33.3364,
+                "Longitude": 44.4004
+            }
+        },
+         "Iran":{
+            "81.91.144.116": {
+                "Latitude":  35.7108,
+                "Longitude": 51.4274
+            }
+        }
+    }
+}
