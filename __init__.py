@@ -16,7 +16,7 @@ import statistics
 
 ### Раздел описания сущностей БД 
 def enginer():
-    engine = create_engine("postgresql+psycopg2://dnschecker:moscow23./@localhost:5432/dnschecker")
+    engine = create_engine("postgresql+psycopg2://dnschecker:moscow23./@localhost:5432/dnscheckerdev")
     return engine
 
 base_engine = enginer()
@@ -300,7 +300,7 @@ def check_ns(ns_list, engine):
 
 def geo_available(pub_list, domains, engine):
     query = dns.resolver.Resolver()
-    query.lifetime = 5
+    query.lifetime = 1
     for region in pub_list:
         for country in pub_list[region]:
             for server in pub_list[region][country]:
@@ -310,9 +310,12 @@ def geo_available(pub_list, domains, engine):
                 for owner in domains:
                     d = random.choice(domains[owner])
                     try: 
-                        query.resolve(d, "A")
+                        answer = query.resolve(d, "A")
+                        for val in answer:
+                            print(f'{country} {server}: {d} ({val})')
                     except (Exception, dns.exception.Timeout) as e:
                         message.append(f"- {d} ({owner}): {str(e)}")
+                        print(f'{country} {server}: {d} ({e})')
                 data['status'] = len(message)
                 data['server'] = server
                 data['country'] = country
