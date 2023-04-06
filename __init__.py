@@ -1,4 +1,4 @@
-#!/home/dnschecker/mon/bin/python3
+#!./mon/bin/python3
 import dns.resolver
 import dns.exception
 from sqlalchemy.orm import declarative_base, Session, scoped_session, sessionmaker

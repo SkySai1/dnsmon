@@ -1,4 +1,4 @@
-#!/home/dnschecker/mon/bin/python3
+#!./mon/bin/python3
 import json
 import os
 import sys
