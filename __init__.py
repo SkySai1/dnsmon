@@ -6,7 +6,7 @@ from sqlalchemy import Column, Float, Text, DateTime, SmallInteger, BigInteger, 
 import datetime
 import json
 from multiprocessing import Process
-from multiprocessing.util import register_after_fork
+from scrapper import scrap
 import os
 import random
 import sys
@@ -222,7 +222,10 @@ def geomap_sync(pub_list, engine):
                 conn.commit()
                 conn.close()
 
-                            
+### Раздел функций поиск публичных NS ###
+def nslook(ns_storage):
+    for url in ns_storage:
+        print(url)    
 
 ### Раздел функций проверки DNS ###
 def stats(type, log, name, flag, engine):
@@ -363,15 +366,18 @@ if __name__ == "__main__":
     ns_path = f"{os.getcwd()}/jsons/nslist.json"
     d_path = f"{os.getcwd()}/jsons/domainslist.json"
     p_path = f"{os.getcwd()}/jsons/public.json"
+    ns_storage_path = f"{os.getcwd()}/jsons/ns_storage.json"
     ns_list = get_list(ns_path)
     d_list = get_list(d_path)
     p_list = get_list(p_path)
+    ns_storage = get_list(ns_storage_path)
     while True:
         data = [
             {default: [ns_list, d_list]},
-            {geo_check: [p_list, d_list]}
+            {geo_check: [p_list, d_list]},
+            {nslook: [ns_storage]}
         ]
         Parallel(data)
 
-        time.sleep(5)
+        time.sleep(10)
     
