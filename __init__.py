@@ -60,167 +60,171 @@ class Geo(Base):
 
 Base.metadata.create_all(base_engine)
 
-
 ### Раздел функций взаимодействия с БД ###
-def domain_sync(d_list, engine):
-    with Session(engine) as conn:
-        d_in_db = select(Domains.domain)
-        result = conn.execute(d_in_db).fetchall()
-        for d_db in result:
-            exist = False
-            for owner in d_list:
-                for d in d_list[owner]:
-                    if d == d_db[0]:
-                        exist = True
-                        break
-            if exist is False:
-                delt = delete(Domains).filter(Domains.domain == d_db[0])
-                conn.execute(delt)
-                conn.commit()
-                conn.close()                                                                                            
-    
+class AccessDB:
 
-def server_sync(ns_list, engine):
-    with Session(engine) as conn:
-        ns_in_db = select(Servers.server)
-        result = conn.execute(ns_in_db).fetchall()
-        for ns_db in result:
-            exist = False
-            for ns in ns_list:
-                if ns == ns_db[0]:
-                    exist = True
-                    break
-            if exist is False:
-                delt = delete(Servers).filter(Servers.server == ns_db[0])
-                conn.execute(delt)
-                conn.commit()
-                conn.close()
+    def __init__(self, engine):
+        self.engine = engine
 
-def update_dtable(domain, status, message, engine):
-    with Session(engine) as conn:
-        check = select(Domains).filter(Domains.domain == domain)
-        result = conn.execute(check).fetchall()
-        offset = datetime.timedelta(hours=3)
-        tz = datetime.timezone(offset, name='MSC')
-        now = datetime.datetime.now(tz=tz).strftime(f"%m/%d/%y %H:%M:%S")
-        if result:
-            if status == 1:
-                stmt = update(Domains).values(
-                    ts = now, 
-                    status = status,
-                    message = message
-                    ).where(Domains.domain == domain)
-            else:
-                stmt = update(Domains).values(
-                    status = status,
-                    message = message
-                    ).where(Domains.domain == domain)
-        else:
-            stmt = insert(Domains).values(
-                ts= now,
-                domain = domain,
-                status = status,
-                message = message
-                )
-        conn.execute(stmt)
-        conn.commit()
-        conn.close()
-
-def update_nstime(ns, time, engine):
-    with Session(engine) as conn:
-        offset = datetime.timedelta(hours=3)
-        tz = datetime.timezone(offset, name='MSC')
-        now = datetime.datetime.now(tz=tz).strftime(f"%m/%d/%y %H:%M:%S")
-        stmt = insert(TimeResolve).values(
-            ts = now,
-            server = ns,
-            rtime = time
-        )
-        conn.execute(stmt)
-        conn.commit()
-        conn.close()
-
-def update_stable(ns, status, message, engine):
-    with Session(engine) as conn:
-        check = select(Servers).filter(Servers.server == ns)
-        result = conn.execute(check).fetchall()
-        offset = datetime.timedelta(hours=3)
-        tz = datetime.timezone(offset, name='MSC')
-        now = datetime.datetime.now(tz=tz).strftime(f"%m/%d/%y %H:%M:%S")
-        if result:
-            if status == 1:
-                stmt = update(Servers).values(
-                    ts = now, 
-                    status = status,
-                    message = message
-                    ).where(Servers.server == ns)
-            else:
-                stmt = update(Servers).values(
-                    status = status,
-                    message = message
-                    ).where(Servers.server == ns)               
-        else:
-            stmt = insert(Servers).values(
-                ts= now,
-                server = ns,
-                status = status,
-                message = message
-                )
-        conn.execute(stmt)
-        conn.commit()
-        conn.close()
-
-def update_geomap(data, engine):
-    with Session(engine) as conn:
-        check = select(Geo.status).filter(Geo.server == data['server'])
-        result = conn.execute(check).fetchall()
-        offset = datetime.timedelta(hours=3)
-        tz = datetime.timezone(offset, name='MSC')
-        now = datetime.datetime.now(tz=tz).strftime(f"%m/%d/%y %H:%M:%S")
-        try:
-            if result[0][0] == data['status']:
-                stmt = update(Geo).values(
-                    status = data['status'],
-                    message = data['message']
-                    ).where(Geo.server == data['server'])
-            elif result:
-                stmt = update(Geo).values(
-                    ts = now, 
-                    status = data['status'],
-                    message = data['message']
-                    ).where(Geo.server == data['server'])
-        except:
-            stmt = insert(Geo).values(
-                ts = now,
-                server = data['server'],
-                status = data['status'],
-                message = data['message'],
-                latitude = data['latitude'],
-                longitude = data['longitude'],
-                region = data['region'],
-                country = data['country']
-            )
-        conn.execute(stmt) #type: ignore
-        conn.commit()
-        conn.close()
-
-def geomap_sync(pub_list, engine):
-    with Session(engine) as conn:
-        ns_in_db = select(Geo.server)
-        result = conn.execute(ns_in_db).fetchall()
-        for ns in result:
-            exist = False    
-            for region in pub_list:
-                for country in pub_list[region]:
-                    for server in pub_list[region][country]:
-                        if server == ns[0]:
+    def domain_sync(self, d_list):
+        with Session(self.engine) as conn:
+            d_in_db = select(Domains.domain)
+            result = conn.execute(d_in_db).fetchall()
+            for d_db in result:
+                exist = False
+                for owner in d_list:
+                    for d in d_list[owner]:
+                        if d == d_db[0]:
                             exist = True
                             break
-            if exist is False:
-                delt = delete(Geo).filter(Geo.server == ns[0])
-                conn.execute(delt)
-                conn.commit()
-                conn.close()
+                if exist is False:
+                    delt = delete(Domains).filter(Domains.domain == d_db[0])
+                    conn.execute(delt)
+                    conn.commit()
+                    conn.close()                                                                                            
+        
+
+    def server_sync(self, ns_list):
+        with Session(self.engine) as conn:
+            ns_in_db = select(Servers.server)
+            result = conn.execute(ns_in_db).fetchall()
+            for ns_db in result:
+                exist = False
+                for ns in ns_list:
+                    if ns == ns_db[0]:
+                        exist = True
+                        break
+                if exist is False:
+                    delt = delete(Servers).filter(Servers.server == ns_db[0])
+                    conn.execute(delt)
+                    conn.commit()
+                    conn.close()
+
+    def update_dtable(self, domain, status, message):
+        with Session(self.engine) as conn:
+            check = select(Domains).filter(Domains.domain == domain)
+            result = conn.execute(check).fetchall()
+            offset = datetime.timedelta(hours=3)
+            tz = datetime.timezone(offset, name='MSC')
+            now = datetime.datetime.now(tz=tz).strftime(f"%m/%d/%y %H:%M:%S")
+            if result:
+                if status == 1:
+                    stmt = update(Domains).values(
+                        ts = now, 
+                        status = status,
+                        message = message
+                        ).where(Domains.domain == domain)
+                else:
+                    stmt = update(Domains).values(
+                        status = status,
+                        message = message
+                        ).where(Domains.domain == domain)
+            else:
+                stmt = insert(Domains).values(
+                    ts= now,
+                    domain = domain,
+                    status = status,
+                    message = message
+                    )
+            conn.execute(stmt)
+            conn.commit()
+            conn.close()
+
+    def update_nstime(self, ns, time):
+        with Session(self.engine) as conn:
+            offset = datetime.timedelta(hours=3)
+            tz = datetime.timezone(offset, name='MSC')
+            now = datetime.datetime.now(tz=tz).strftime(f"%m/%d/%y %H:%M:%S")
+            stmt = insert(TimeResolve).values(
+                ts = now,
+                server = ns,
+                rtime = time
+            )
+            conn.execute(stmt)
+            conn.commit()
+            conn.close()
+
+    def update_stable(self, ns, status, message):
+        with Session(self.engine) as conn:
+            check = select(Servers).filter(Servers.server == ns)
+            result = conn.execute(check).fetchall()
+            offset = datetime.timedelta(hours=3)
+            tz = datetime.timezone(offset, name='MSC')
+            now = datetime.datetime.now(tz=tz).strftime(f"%m/%d/%y %H:%M:%S")
+            if result:
+                if status == 1:
+                    stmt = update(Servers).values(
+                        ts = now, 
+                        status = status,
+                        message = message
+                        ).where(Servers.server == ns)
+                else:
+                    stmt = update(Servers).values(
+                        status = status,
+                        message = message
+                        ).where(Servers.server == ns)               
+            else:
+                stmt = insert(Servers).values(
+                    ts= now,
+                    server = ns,
+                    status = status,
+                    message = message
+                    )
+            conn.execute(stmt)
+            conn.commit()
+            conn.close()
+
+    def update_geomap(self, data):
+        with Session(self.engine) as conn:
+            check = select(Geo.status).filter(Geo.server == data['server'])
+            result = conn.execute(check).fetchall()
+            offset = datetime.timedelta(hours=3)
+            tz = datetime.timezone(offset, name='MSC')
+            now = datetime.datetime.now(tz=tz).strftime(f"%m/%d/%y %H:%M:%S")
+            try:
+                if result[0][0] == data['status']:
+                    stmt = update(Geo).values(
+                        status = data['status'],
+                        message = data['message']
+                        ).where(Geo.server == data['server'])
+                elif result:
+                    stmt = update(Geo).values(
+                        ts = now, 
+                        status = data['status'],
+                        message = data['message']
+                        ).where(Geo.server == data['server'])
+            except:
+                stmt = insert(Geo).values(
+                    ts = now,
+                    server = data['server'],
+                    status = data['status'],
+                    message = data['message'],
+                    latitude = data['latitude'],
+                    longitude = data['longitude'],
+                    region = data['region'],
+                    country = data['country']
+                )
+            conn.execute(stmt) #type: ignore
+            conn.commit()
+            conn.close()
+
+    def geomap_sync(self, pub_list):
+        with Session(self.engine) as conn:
+            ns_in_db = select(Geo.server)
+            result = conn.execute(ns_in_db).fetchall()
+            for ns in result:
+                exist = False    
+                for region in pub_list:
+                    for country in pub_list[region]:
+                        for server in pub_list[region][country]:
+                            if server == ns[0]:
+                                exist = True
+                                break
+                if exist is False:
+                    delt = delete(Geo).filter(Geo.server == ns[0])
+                    conn.execute(delt)
+                    conn.commit()
+                    conn.close()
 
 ### Раздел функций поиск публичных NS ###
 def nslook(ns_storage):
@@ -288,7 +292,7 @@ def check_domains(d_list, ns_list, engine):
             data.append(domain_resolve(d, owner, ns_list, ns_time, engine))
     resolve_time(data, ns_list, engine)
 
-def check_ns(ns_list, engine):
+def check_ns(ns_list, db:AccessDB):
     query = dns.resolver.Resolver()
     for ns in ns_list:
         if ns_list[ns][1] == 'ilbb': d = 'online.vtb.ru'
@@ -297,11 +301,11 @@ def check_ns(ns_list, engine):
         try:
             query.nameservers = [ns_list[ns][0]]
             query.resolve(d, "A")
-            update_stable(ns, 1, '', engine)
+            db.update_stable(ns, 1, '')
         except Exception as e:
-            update_stable(ns, 0, str(e), engine)
+            db.update_stable(ns, 0, str(e))
 
-def geo_available(pub_list, domains, engine):
+def geo_available(pub_list, domains, db:AccessDB):
     query = dns.resolver.Resolver()
     query.lifetime = 1
     for region in pub_list:
@@ -326,24 +330,24 @@ def geo_available(pub_list, domains, engine):
                 data['message'] = "\n".join(message)
                 data['latitude'] = pub_list[region][country][server]['Latitude']
                 data['longitude'] = pub_list[region][country][server]['Longitude']
-                update_geomap(data, engine)
+                db.update_geomap(data)
                 time.sleep(1)
                     
 
 def default(ns_list, d_list):
-    engine = enginer()
+    db = AccessDB(enginer())
     while True:
-        server_sync(ns_list, engine)
-        domain_sync(d_list, engine)
-        check_ns(ns_list, engine)
-        check_domains(d_list,ns_list,engine)
+        db.server_sync(ns_list)
+        db.domain_sync(d_list)
+        check_ns(ns_list, db)
+        check_domains(d_list,ns_list, db)
         time.sleep(60)
 
 def geo_check(p_list, d_list):
-    engine = enginer()
+    db = AccessDB(enginer())
     while True:
-        geomap_sync(p_list, engine)
-        geo_available(p_list, d_list, engine)
+        db.geomap_sync(p_list)
+        geo_available(p_list, d_list, db)
         time.sleep(10)
 
 # Мультипроцессинг:
