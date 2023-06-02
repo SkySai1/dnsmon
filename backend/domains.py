@@ -1,5 +1,6 @@
 import dns.message
 import dns.rdatatype
+import dns.rcode
 import logging
 
 from backend.accessdb import AccessDB
@@ -8,7 +9,7 @@ class Domains:
     def __init__(self, _CONF) -> None:
         pass
 
-    def parse(self, data:dns.message.Message, db:AccessDB):
+    def parse(self, data:dns.message.Message, auth, db:AccessDB):
         try:
             domain = data.question[0].name.to_text()
             rdata = None
@@ -17,7 +18,7 @@ class Domains:
                 for rr in data.answer:
                     if rr.rdtype == dns.rdatatype.A:
                         rdata = ', '.join(str(v) for v in rr)
-            db.UpdateDomains(domain, error, rdata)
+            db.UpdateDomains(domain, error, auth, rdata)
                         
         except:
             logging.exception('DOMAIN PARSE:')

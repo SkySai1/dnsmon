@@ -127,11 +127,11 @@ class Recursive:
                 continue
 
 
-            if result.answer:
+            if result.answer or result.rcode() != dns.rcode.NOERROR:
                 return result, ns # <- If got a rdata then return it
-            elif not result or not result.authority: # <- if not and there is no authority NS then domain doesnt exist
-                result.set_rcode(3) 
-                return result, None
+            
+            elif not result.authority: # <- if not and there is no authority NS then domain doesnt exist
+                return result, ns
             
             NewNSlist = [] # <- IP list for authority NS
             if result.additional:

@@ -31,6 +31,7 @@ class Domains(Base):
     status = Column(SmallInteger, nullable=False)
     result = Column(Text)
     message = Column(Text)
+    auth = Column(String(255), default = None)
 
 class TimeResolve(Base):  
     __tablename__ = "timeresolve" 
@@ -64,7 +65,7 @@ class AccessDB:
         self.engine = enginer(_CONF)
         self.timedelta = _CONF['timedelta']
     
-    def UpdateDomains(self, domain, error:dns.rcode, result = None, message = None):
+    def UpdateDomains(self, domain, error:dns.rcode, auth = None, result = None, message = None):
         with Session(self.engine) as conn:
             check = select(Domains).filter(Domains.domain == domain)
             check = conn.execute(check).fetchall()
@@ -73,12 +74,14 @@ class AccessDB:
                     stmt = update(Domains).values(
                         ts = getnow(self.timedelta), 
                         status = 1,
+                        auth = auth,
                         result = result,
                         message = message
                         ).where(Domains.domain == domain)
                 else:
                     stmt = update(Domains).values(
                         status = 0,
+                        auth = auth,
                         result = dns.rcode.to_text(error),
                         message = message
                         ).where(Domains.domain == domain)
@@ -90,6 +93,7 @@ class AccessDB:
                 stmt = insert(Domains).values(
                     ts= getnow(self.timedelta),
                     domain = domain,
+                    auth = auth,
                     status = status,
                     result = result,
                     message = message

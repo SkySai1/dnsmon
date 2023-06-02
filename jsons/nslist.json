@@ -2,31 +2,31 @@
 
     "195.242.83.129": [
         "ns4.vtb.ru",
-        "vtb"
+        "extdns"
     ],
     "185.179.147.25": [
         "ns5.vtb.ru",
-        "vtb"
+        "extdns"
     ],
     "185.179.145.22": [
         "ns6.vtb.ru",
-        "vtb"
+        "extdns"
     ],
     "195.242.82.166": [
         "ns7.vtb.ru",
-        "vtb"
+        "extdns"
     ],
     "195.242.83.166": [
         "ns8.vtb.ru",
-        "vtb"
+        "extdns"
     ],
     "185.179.147.23": [
         "ns9.vtb.ru",
-        "vtb"]
-        ,
+        "extdns"
+    ],
     "185.179.145.34": [
         "ns10.vtb.ru",
-        "vtb"
+        "extdns"
     ],    
     "185.179.144.1": [
         "ilbb-ns1.vtb.ru",

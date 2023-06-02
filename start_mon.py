@@ -56,9 +56,11 @@ def launch(domains_list):
     for t in stream:
         t.join()
         data, ns, rt = t.value
-        D.parse(data, db) # <- preparing resolved data to load into DB
-
-        if ns in ns_list: ns = ns_list[ns][0]
+        if ns in ns_list: 
+            auth = ns_list[ns][1]
+            ns = ns_list[ns][0]
+        else: auth = ns
+        D.parse(data, auth, db) # <- preparing resolved data to load into DB
         if not ns in ns_stats: ns_stats[ns] = []
         else: ns_stats[ns].append(rt)
         #print(data[0].question, data[1], data[2])
