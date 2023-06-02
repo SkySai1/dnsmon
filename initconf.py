@@ -2,8 +2,9 @@
 import os
 import configparser
 import sys
-
+import uuid
 _OPTIONS =[
+    'node',
     'refresh',
     'timedelta',
     'debug',
@@ -53,13 +54,14 @@ def deafultconf():
     config['DEFAULT'] = {
         'debug': 0,
         'timedelta': 3,
-        'refresh': 10
+        'refresh': 10,
+        'node': "%s"%uuid.uuid4()
     }
     config['FILES'] = {
-        "zones": "./jsons/zones.json",
-        "domains": "./jsons/domains.json",
-        "nameservers": "./jsons/nameservers.json",
-        "publicns": "./jsons/publicns.json",
+        "zones": "./jsons/zones.example.json",
+        "domains": "./jsons/domains.example.json",
+        "nameservers": "./jsons/nslist.example.json",
+        "publicns": "./jsons/ns_storage.json",
     }
     config['DATABASE'] = {
         "dbuser": DBUser,

@@ -10,8 +10,8 @@ import dns.rdatatype
 import dns.rdataclass
 import dns.rcode
 from multiprocessing import Process
-
 from initconf import getconf
+from backend.namservers import Nameservers
 from backend.accessdb import Base, enginer, AccessDB
 from backend.recursive import Recursive
 from backend.domains import Domains, make_fqdn
@@ -52,28 +52,30 @@ def launch(domains_list):
     # -- Collect data from each thread and do things --
     ns_stats = {}
     D = Domains(_CONF)
+    NS = Nameservers(_CONF)
     db = AccessDB(_CONF)
     for t in stream:
         t.join()
-        data, ns, rt = t.value
-        if ns in ns_list: 
-            auth = ns_list[ns][1]
-            ns = ns_list[ns][0]
-        else: auth = ns
+        data, ip, rt = t.value
+        if ip in ns_list: 
+            auth = ns_list[ip][1]
+            ns = ns_list[ip][0]
+        else: 
+            auth = ns = None
         D.parse(data, auth, db) # <- preparing resolved data to load into DB
-        if not ns in ns_stats: ns_stats[ns] = []
-        else: ns_stats[ns].append(rt)
-        #print(data[0].question, data[1], data[2])
+        if data.rcode() == dns.rcode.NOERROR and ns:
+            if not ns in ns_stats: ns_stats[ns] = []
+            ns_stats[ns].append((rt, data.time))
+    if ns_stats: NS.resolvetime(ns_stats, db)
     #for ns in ns_stats: print(ns)
 
 
 
 
 def get_list(path):
-    if os.path.exists(path):
-        with open(path, "r") as f:
-            list = json.loads(f.read())
-            return list
+    with open(path, "r") as f:
+        list = json.loads(f.read())
+        return list
 
 # Мультипроцессинг:
 def Parallel(data):
@@ -101,8 +103,13 @@ if __name__ == '__main__':
         sys.exit()
 
     # -- Try to create tables if it doesnt --
-    try: Base.metadata.create_all(enginer(_CONF))
-    except: logging.exception('DB INIT:')
+    try: 
+        Base.metadata.create_all(enginer(_CONF))
+        init = AccessDB(_CONF)
+        init.NewNode()
+    except: 
+        logging.exception('DB INIT:')
+        sys.exit()
 
     # -- Try to get list of DNS objects to checking it --
     try:

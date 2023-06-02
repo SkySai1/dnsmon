@@ -4,7 +4,7 @@ import logging
 import uuid
 import dns.rcode
 from sqlalchemy.orm import declarative_base, Session, scoped_session, sessionmaker
-from sqlalchemy import engine, Column, Float, Text, DateTime, SmallInteger, BigInteger, String, create_engine, insert, select, update, delete
+from sqlalchemy import ForeignKey, engine, Integer, Column, Float, Text, DateTime, SmallInteger, BigInteger, String, create_engine, insert, select, update, delete
 from sqlalchemy.dialects.postgresql import UUID
 
 def enginer(_CONF):
@@ -22,12 +22,17 @@ def enginer(_CONF):
         
 Base = declarative_base()
 
+class Nodes(Base):
+    __tablename__ = "nodes"
+    id = Column(Integer, primary_key=True)
+    node = Column(String(255), unique=True)
 
 class Domains(Base):  
     __tablename__ = "domains" 
     id = Column(BigInteger, primary_key=True)
+    node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
     ts = Column(DateTime(timezone=True), nullable=False)  
-    domain = Column(String(255), nullable=False, unique=True)  
+    domain = Column(String(255), nullable=False)  
     status = Column(SmallInteger, nullable=False)
     result = Column(Text)
     message = Column(Text)
@@ -36,23 +41,27 @@ class Domains(Base):
 class TimeResolve(Base):  
     __tablename__ = "timeresolve" 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    ts = Column(DateTime(timezone=True), nullable=False)  
+    node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
+    ts = Column(DateTime(timezone=True), nullable=False)
     server = Column(String(255), nullable=False)  
     rtime = Column(Float)
+    rtime_short = Column(Float)
 
 class Servers(Base):  
     __tablename__ = "servers" 
     id = Column(BigInteger, primary_key=True)
+    node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
     ts = Column(DateTime(timezone=True), nullable=False)  
-    server = Column(String(255), nullable=False, unique=True)  
+    server = Column(String(255), nullable=False)  
     status = Column(SmallInteger, nullable=False)
     message = Column(Text)
 
 class Geo(Base):  
     __tablename__ = "geomap" 
     id = Column(BigInteger, primary_key=True)
+    node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
     ts = Column(DateTime(timezone=True), nullable=False)  
-    server = Column(String(255), nullable=False, unique=True)  
+    server = Column(String(255), nullable=False)  
     status = Column(SmallInteger, nullable=False)
     message = Column(Text)
     latitude = Column(Float)
@@ -64,58 +73,96 @@ class AccessDB:
     def __init__(self, _CONF):
         self.engine = enginer(_CONF)
         self.timedelta = _CONF['timedelta']
+        self.node = _CONF['node']
+    
+    def NewNode(self):
+        with Session(self.engine) as conn:
+            try:
+                check = conn.execute(select(Nodes.node).filter(Nodes.node == self.node)).fetchone()
+                if not check:
+                    conn.execute(
+                        insert(Nodes).values(node = self.node)
+                    )
+                    conn.commit()
+            except:
+                logging.exception('CREATING NEW NODE:')
+
+    def InsertTimeresolve(self, data):
+        with Session(self.engine) as conn:
+            try:
+                conn.execute(insert(TimeResolve), data)
+                conn.commit()
+            except:
+                logging.exception('INSERT TIMERESOLVE:')
+
     
     def UpdateDomains(self, domain, error:dns.rcode, auth = None, result = None, message = None):
         with Session(self.engine) as conn:
-            check = select(Domains).filter(Domains.domain == domain)
-            check = conn.execute(check).fetchall()
-            if check:
-                if error == dns.rcode.NOERROR:
-                    stmt = update(Domains).values(
-                        ts = getnow(self.timedelta), 
-                        status = 1,
+            try:
+                check = (select(Domains)
+                         .filter(Domains.domain == domain)
+                         .filter(Domains.node == self.node))
+                check = conn.execute(check).fetchall()
+                if check:
+                    if error == dns.rcode.NOERROR:
+                        stmt = update(Domains).values(
+                            ts = getnow(self.timedelta),
+                            status = 1,
+                            auth = auth,
+                            result = result,
+                            message = message
+                            ).where(Domains.domain == domain)
+                    else:
+                        stmt = update(Domains).values(
+                            status = 0,
+                            auth = auth,
+                            result = dns.rcode.to_text(error),
+                            message = message
+                            ).where(Domains.domain == domain)
+                else:
+                    if error != dns.rcode.NOERROR:
+                        status = 0
+                        result = dns.rcode.to_text(error)
+                    else: status = 1
+                    stmt = insert(Domains).values(
+                        ts= getnow(self.timedelta),
+                        node = self.node,
+                        domain = domain,
                         auth = auth,
+                        status = status,
                         result = result,
                         message = message
-                        ).where(Domains.domain == domain)
-                else:
-                    stmt = update(Domains).values(
-                        status = 0,
-                        auth = auth,
-                        result = dns.rcode.to_text(error),
-                        message = message
-                        ).where(Domains.domain == domain)
-            else:
-                if error != dns.rcode.NOERROR:
-                    status = 0
-                    result = dns.rcode.to_text(error)
-                else: status = 1
-                stmt = insert(Domains).values(
-                    ts= getnow(self.timedelta),
-                    domain = domain,
-                    auth = auth,
-                    status = status,
-                    result = result,
-                    message = message
-                    )
-            conn.execute(stmt)
-            conn.commit()
-            conn.close()
+                        )
+                conn.execute(stmt)
+                conn.commit()
+                conn.close()
+            except:
+                logging.exception('UPDATE DOMAINS TABLE:')
 
     def GetDomain(self, domain=None):
         with Session(self.engine) as conn:
-            if domain:
-                stmt = select(Domains.domain).filter(Domains.domain == domain)
-            else:
-                stmt = select(Domains.domain)
-            result = conn.execute(stmt).fetchall()
-            return result
+            try:
+                if domain:
+                    stmt = (select(Domains.domain)
+                            .filter(Domains.domain == domain)
+                            .filter(Domains.node == self.node))
+                else:
+                    stmt = select(Domains.domain)
+                result = conn.execute(stmt).fetchall()
+                return result
+            except:
+                logging.exception('GET DOMAINS FROM DB:')
         
     def RemoveDomain(self, domain):
         with Session(self.engine) as conn:
-            stmt = delete(Domains).filter(Domains.domain == domain)
-            conn.execute(stmt)
-            conn.commit()
+            try:
+                stmt = (delete(Domains)
+                        .filter(Domains.domain == domain)
+                        .filter(Domains.node == self.node))
+                conn.execute(stmt)
+                conn.commit()
+            except:
+                logging.exception('REMOVE DOMAIN FROM DB:')
 
     
 def getnow(delta, rise = 0):
