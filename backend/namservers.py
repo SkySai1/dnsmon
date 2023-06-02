@@ -45,7 +45,7 @@ class NScheck(Thread):
                         self.data.append(f"{zone}: {error}")
 
                     # Внизу костыль, УБРАТЬ!
-                    if self.ns == ('185.247.195.1' or '185.247.195.2'): 
+                    if self.ns in ['185.247.195.1', '185.247.195.2']: 
                         rtime.append(self.answer.time)
 
                     else: self.empty = False
