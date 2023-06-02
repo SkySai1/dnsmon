@@ -95,7 +95,46 @@ class AccessDB:
             except:
                 logging.exception('INSERT TIMERESOLVE:')
 
-    
+    def UpdateNS(self, ns, message = None):
+        with Session(self.engine) as conn:
+            try:
+                check = (select(Servers)
+                         .filter(Servers.server == ns)
+                         .filter(Servers.node == self.node))
+                check = conn.execute(check).fetchall()
+                if check:
+                    if not message:
+                        stmt = (update(Servers).values(
+                            ts = getnow(self.timedelta),
+                            status = 1,
+                            message = message
+                            ).filter(Servers.server == ns)
+                            .filter(Servers.node == self.node)
+                        )
+                    else:
+                        stmt = (update(Servers).values(
+                            status = 0,
+                            message = message
+                            ).filter(Servers.server == ns)
+                            .filter(Servers.node == self.node)
+                        )
+                else:
+                    if not message:
+                        status = 1
+                    else: status = 0
+                    stmt = insert(Servers).values(
+                        ts= getnow(self.timedelta),
+                        node = self.node,
+                        status = status,
+                        server = ns,
+                        message = message
+                        )
+                conn.execute(stmt)
+                conn.commit()
+                conn.close()
+            except:
+                logging.exception('UPDATE NAMESERVERS TABLE:')
+
     def UpdateDomains(self, domain, error:dns.rcode, auth = None, result = None, message = None):
         with Session(self.engine) as conn:
             try:
@@ -105,20 +144,24 @@ class AccessDB:
                 check = conn.execute(check).fetchall()
                 if check:
                     if error == dns.rcode.NOERROR:
-                        stmt = update(Domains).values(
+                        stmt = (update(Domains).values(
                             ts = getnow(self.timedelta),
                             status = 1,
                             auth = auth,
                             result = result,
                             message = message
-                            ).where(Domains.domain == domain)
+                            ).filter(Domains.domain == domain)
+                            .filter(Domains.node == self.node)
+                        )
                     else:
-                        stmt = update(Domains).values(
+                        stmt = (update(Domains).values(
                             status = 0,
                             auth = auth,
                             result = dns.rcode.to_text(error),
                             message = message
-                            ).where(Domains.domain == domain)
+                            ).filter(Domains.domain == domain)
+                            .filter(Domains.node == self.node)
+                        )
                 else:
                     if error != dns.rcode.NOERROR:
                         status = 0

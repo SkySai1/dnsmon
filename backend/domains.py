@@ -2,8 +2,28 @@ import dns.message
 import dns.rdatatype
 import dns.rcode
 import logging
-
 from backend.accessdb import AccessDB
+from backend.recursive import Recursive
+from threading import Thread
+
+class DomainResolve(Thread):
+
+    def __init__(self, qname, debug):
+        Thread.__init__(self)
+        self.value = None
+        self.qname = qname
+        self.debug = debug
+ 
+    def run(self):
+        query = dns.message.make_query(self.qname, dns.rdatatype.A)
+        R = Recursive()
+        for i in range(3):
+            self.value = R.recursive(query)
+            if self.value[0].answer: 
+                break
+        if self.debug == (1 or 3):
+            print(self.value[0].question[0].name, self.value[0].rcode(), self.value[1], self.value[2], self.value[0].time)
+
 
 class Domains:
     def __init__(self, _CONF) -> None:
