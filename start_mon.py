@@ -34,7 +34,7 @@ class DomainResolve(Thread):
             if self.value[0].answer: 
                 break
         if _DEBUG > 0:
-            print(self.value[0].answer, self.value[1:], self.value[0].rcode())
+            print(self.value[0].question[0].name, self.value[0].rcode(), self.value[2], self.value[0].time)
 
 # Make the magic begin
 def launch(domains_list):
