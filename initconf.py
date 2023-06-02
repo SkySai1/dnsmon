@@ -4,6 +4,9 @@ import configparser
 import sys
 
 _OPTIONS =[
+    'refresh',
+    'timedelta',
+    'debug',
     'zones',
     'domains',
     'nameservers',
@@ -27,10 +30,13 @@ def getconf(path):
     return parsed
 
 def filter(config):
+    config['debug'] = int(config['debug'])
     config['zones'] = os.path.abspath(config['zones'])
     config['domains'] = os.path.abspath(config['domains'])
     config['nameservers'] = os.path.abspath(config['nameservers'])
     config['publicns'] = os.path.abspath(config['publicns'])
+    config['timedelta'] = int(config['timedelta'])
+    config['refresh'] = float(config['refresh'])
     return config
 
 
@@ -44,7 +50,11 @@ def deafultconf():
     DBUser = str(input('Input USER of your Data Base:\n'))
     DBPass = str(input('Input PASSWORD of your Data Base\'s user:\n'))
     DBName = str(input('Input BASENAME of your Data Base\n'))
-
+    config['DEFAULT'] = {
+        'debug': 0,
+        'timedelta': 3,
+        'refresh': 10
+    }
     config['FILES'] = {
         "zones": "./jsons/zones.json",
         "domains": "./jsons/domains.json",
