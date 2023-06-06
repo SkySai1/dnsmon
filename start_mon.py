@@ -52,7 +52,7 @@ def launch_domain_check(domains_list):
     #for ns in ns_stats: print(ns)
 
 # --NameServer checking
-def launch_ns_check(nslist, zones):
+def launch_ns_and_zones_check(nslist, zones):
     stream = []
     db = AccessDB(_CONF)
     NS = Nameservers(_CONF)
@@ -76,7 +76,7 @@ def launch_ns_check(nslist, zones):
     time.sleep(5)
 
 # --Zones Trace Resolve
-def launch_zones_check(zones):
+def launch_zones_resolve(zones):
     # -- Make resolve in another thread for each zone --
     stream = []
     for group in zones:
@@ -156,8 +156,8 @@ if __name__ == '__main__':
     domainDB = AccessDB(_CONF)
     processes = [
         {launch_domain_check: [domains_list]},
-        {launch_ns_check: [ns_list, zones]},
-        {launch_zones_check: [zones]},
+        {launch_ns_and_zones_check: [ns_list, zones]},
+        {launch_zones_resolve: [zones]},
         {domain_service.sync: [domains_list, domainDB]}
     ]
     try:
