@@ -73,6 +73,7 @@ def launch_ns_check(nslist, zones):
             NS.parse(ns, t.data, db)
             stats[ns] = t.serials
     Z.parse(stats, db)
+    time.sleep(5)
 
 # --Zones Trace Resolve
 def launch_zones_check(zones):

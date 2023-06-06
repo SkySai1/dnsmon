@@ -1,5 +1,6 @@
 from statistics import mean
 from backend.accessdb import AccessDB, getnow, enginer
+from backend.names import make_fqdn
 from threading import Thread
 import dns.message
 import dns.name
@@ -30,7 +31,7 @@ class NScheck(Thread):
         self.empty = True
         for group in self.zones:
             if group != self.group: continue
-            for zone in self.zones[group]:
+            for zone in make_fqdn(self.zones[group]):
                 self.serials[zone] = {}
                 #time.sleep(0.1)
                 try:

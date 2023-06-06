@@ -81,18 +81,13 @@ class Zones:
             for ns in zones[zone]:
                 if zones[zone][ns]['status'] is not dns.rcode.NOERROR:
                     status = 0
-                    message.append(f"{ns}: {zones[zone][ns]['status']}")
+                    message.append(f"{ns}: {str(zones[zone][ns]['status'])}")
                     continue
                 if zones[zone][ns]['serial'] < serial:
                     status = 0
                     message.append(f"{ns}: bad serial - {zones[zone][ns]['serial']}")
             message = " & ".join(message)
-            db.UpdateZones(zone, status, serial, message)    
-
-
-                
-
-
+            db.UpdateZones(zone, status, serial, message)            
 
     def resolvetime(self, data, db:AccessDB):
         stats = []
