@@ -149,8 +149,8 @@ if __name__ == '__main__':
     domain_service = Domains(_CONF)
     domainDB = AccessDB(_CONF)
     processes = [
-        #{launch_domain_check: [domains_list]},
-        #{launch_ns_check: [ns_list, zones]},
+        {launch_domain_check: [domains_list]},
+        {launch_ns_check: [ns_list, zones]},
         {launch_zones_check: [zones]},
         {domain_service.sync: [domains_list, domainDB]}
     ]
