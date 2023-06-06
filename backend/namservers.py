@@ -26,6 +26,7 @@ class NScheck(Thread):
     def run(self):
         self.data = []
         rtime = []
+        self.serials = {}
         self.empty = True
         for group in self.zones:
             if group != self.group: continue
@@ -43,7 +44,11 @@ class NScheck(Thread):
                     if self.answer.rcode() is not dns.rcode.NOERROR:
                         error = dns.rcode.to_text(self.answer.rcode())
                         self.data.append(f"{zone}: {error}")
-                    else: self.empty = False
+                        serial = None
+                    else:
+                        serial = self.answer.answer[0][0].serial
+                        self.empty = False
+                    self.serials[zone] = (serial, self.answer.rcode())
 
                     # Внизу костыль, УБРАТЬ!
                     if self.ns in ['185.247.195.1', '185.247.195.2']: 

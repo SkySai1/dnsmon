@@ -56,18 +56,23 @@ def launch_ns_check(nslist, zones):
     stream = []
     db = AccessDB(_CONF)
     NS = Nameservers(_CONF)
+    Z = Zones(_CONF)
     for ns in nslist:
         group = nslist[ns][1]
         name = nslist[ns][0]
         t = NScheck(_CONF, ns, group, zones, _DEBUG, name)
         t.start()
         stream.append(t)
+
+    stats = {}
     for t in stream:
         t.join()
         ns = t.ns
         if ns in nslist: ns = nslist[ns][0]
         if t.empty is False:
             NS.parse(ns, t.data, db)
+            stats[ns] = t.serials
+    Z.parse(stats)
 
 # --Zones Trace Resolve
 def launch_zones_check(zones):

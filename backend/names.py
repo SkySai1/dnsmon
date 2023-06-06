@@ -1,3 +1,4 @@
+import random
 import dns.message
 import dns.rdatatype
 import dns.rcode
@@ -58,6 +59,20 @@ class Zones:
     def __init__(self, conf):
         self.timedelta = conf['timedelta']
         self.node = conf['node']
+
+    def parse(self, data):
+        zones = {}
+        for ns in data:
+            for zn in data[ns]:
+                if not zn in zones: zones[zn] = []
+                zones[zn].append((ns, data[ns][zn]))
+
+        for zone in zones:
+            random.shuffle(zones[zone])
+            control = zones[zone][0]
+            for ns_serial in zones[zone]:
+                if ns_serial[1] == control[1]:
+                    print(ns_serial)
 
     def resolvetime(self, data, db:AccessDB):
         stats = []
