@@ -13,11 +13,12 @@ import logging
 
 class NScheck(Thread):
 
-    def __init__(self, _CONF, ns, group, zones, debug):
+    def __init__(self, _CONF, ns, group, zones, debug, name = None):
         Thread.__init__(self)
         self.conf = _CONF
         self.value = None
         self.ns = ns
+        self.nsname = name
         self.group = group
         self.zones = zones
         self.debug = debug
@@ -33,35 +34,36 @@ class NScheck(Thread):
                 try:
                     qname = dns.name.from_text(zone)
                     query = dns.message.make_query(qname, dns.rdatatype.SOA)
-                    for i in range(3):
+                    for i in range(5):
                         try:
-                            self.answer = dns.query.udp(query, self.ns, timeout=5)
+                            self.answer = dns.query.udp(query, self.ns, self.conf['timeout'])
                             break
-                        except Exception as e:
-                            i+=1
-                            if i >=3: raise e
+                        except dns.exception.Timeout as e:
+                            if i >=2: raise e
                     if self.answer.rcode() is not dns.rcode.NOERROR:
                         error = dns.rcode.to_text(self.answer.rcode())
                         self.data.append(f"{zone}: {error}")
+                    else: self.empty = False
 
                     # Внизу костыль, УБРАТЬ!
                     if self.ns in ['185.247.195.1', '185.247.195.2']: 
                         rtime.append(self.answer.time)
+                    # Конец костыля
 
-                    else: self.empty = False
                 except dns.exception.Timeout as timeout:
                     self.empty = False
                     self.data.append(f"{zone}: {str(timeout)}")
                     continue
                 except Exception as e:
                     self.empty = False
+                    self.data.append(f"{zone}: {str(timeout)}")
                     continue
 
         # Продолжение костыля. УБРАТЬ!
         if rtime: Nameservers.Kostil(self, self.ns, rtime)
 
         if self.debug == (2 or 3):
-            print(self.ns, self.empty, self.data)
+            print(self.nsname, self.ns, self.empty, self.data)
 
 
 class Nameservers:
@@ -76,27 +78,22 @@ class Nameservers:
             "node": self.conf['node'],
             "ts": getnow(self.conf['timedelta']),
             "server": ns,
-            "rtime_short": mean(time)
+            "rtime": mean(time)
         }]
         db = AccessDB(self.conf)
         db.InsertTimeresolve(stats)
+    # Конец костыля
 
 
     def resolvetime(self, data, db:AccessDB):
         stats = []
         for ns in data:
-            full = []
-            short = []
-            for time in data[ns]:
-                full.append(time[0])
-                short.append(time[1])
             stats.append(
                 {
                     "node": self.node,
                     "ts": getnow(self.timedelta),
                     "server": ns, 
-                    "rtime": mean(full),
-                    "rtime_short": mean(short)
+                    "rtime": mean(data[ns]),
                  }
                  )
         db.InsertTimeresolve(stats)

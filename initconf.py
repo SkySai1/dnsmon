@@ -5,6 +5,7 @@ import sys
 import uuid
 _OPTIONS =[
     'node',
+    'timeout',
     'refresh',
     'timedelta',
     'debug',
@@ -32,6 +33,7 @@ def getconf(path):
 
 def filter(config):
     config['debug'] = int(config['debug'])
+    config['timeout'] = int(config['timeout'])
     config['zones'] = os.path.abspath(config['zones'])
     config['domains'] = os.path.abspath(config['domains'])
     config['nameservers'] = os.path.abspath(config['nameservers'])
@@ -53,6 +55,7 @@ def deafultconf():
     DBName = str(input('Input BASENAME of your Data Base\n'))
     config['DEFAULT'] = {
         'debug': 0,
+        'timeout': 1,
         'timedelta': 3,
         'refresh': 10,
         'node': "%s"%uuid.uuid4()

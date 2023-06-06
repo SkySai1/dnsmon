@@ -1,3 +1,5 @@
+#!./mon/bin/python
+
 import ipaddress
 import random
 import socket
@@ -11,6 +13,7 @@ import dns.rdatatype
 import dns.rdataclass
 import dns.rcode
 import dns.name
+import dns.flags
 import logging
 
 _ROOT = [
@@ -47,34 +50,96 @@ CLASS = {1:'IN', 2:'CS', 3:'CH', 4:'Hesiod', 254:'None', 255:'*'}
 
 class Recursive:
 
-    def __init__(self, timeout = 5, depth = 30, extresolver = None):
+    def __init__(self, timeout:float = 1, depth:int = 30, retry:int = 3, extresolver:str = None):
         self.timeout = timeout
         self.depth = depth
+        self.retry = retry
         self.extresolver = extresolver
 
     def recursive(self, query:dns.message.Message):
-        self.udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # < - Init Recursive socket
-        self.udp.settimeout(self.timeout) # < - Setting timeout
-
-        # -- External resolving if specify external DNS server
-        if self.extresolver:
-            result = Recursive.extresolve(self, self.extresolver, query)
+        resolver = self.extresolver
+        # - External resolving if specify external DNS server
+        if resolver:
+            result = Recursive.extresolve(self, resolver, query)
             return result, None
-        
-        # -- Internal resolving if it is empty
+        else:
+            # - Internal resolving if it is empty
+            try:
+                start = time.time()
+                for ns in _ROOT:
+                    result, auth = Recursive.resolve(self, query, ns, 0)
+                    if dns.flags.AA in result.flags: break
+                if not result: raise Exception 
+            except: # <-In any troubles at process resolving returns request with SERVFAIL code
+                logging.exception(f'Stage: Recursive: {query.question}')
+                result = dns.message.make_response(query)
+                result.set_rcode(2)
+                auth = None
+            finally:
+                end = time.time()
+                return result, auth, end-start
+
+    def resolve(self, query:dns.message.QueryMessage, ns, depth):
+        # -Checking current recursion depth-
         try:
-            start = time.time()
-            result, ns = Recursive.resolve(self, query, _ROOT, 0, self.udp)
-            end = time.time()
-            if not result: raise Exception 
-        except: # <-In any troubles at process resolving returns request with SERVFAIL code
-            #logging.exception('RESOLVING')
+            if depth >= self.depth: 
+                raise Exception("Reach maxdetph - %s!" % self.depth)# <- Set max recursion depth
+            depth += 1
+            if _DEBUG in [1,3]: print(f"{depth}: {ns}") # <- SOME DEBUG
+        except:
+            result = dns.message.make_response(query)
+            result.set_rcode(5)
+            #logging.exception(f'Resolve: #1, qname - {result.question[0].name}')
+            return result, ns
+        
+        # -Trying to get answer from specifing nameserver-
+        try:
+            for i in range(self.retry):
+                try:
+                    result = dns.query.udp(query, ns, self.timeout)
+                    break
+                except dns.exception.Timeout as e:
+                    pass
+            if query.id != result.id:
+                raise Exception('ID mismatch!')
+            if not result: raise Exception
+            if _DEBUG in [2,3]: print(result,'\n\n')  # <- SOME DEBUG
+        except Exception:
             result = dns.message.make_response(query)
             result.set_rcode(2)
-            ns = None
-        finally:
-            end = time.time()
-            return  result, ns, end-start# <- In anyway returns byte's packet and DNS Record data
+            return result, ns
+
+        if dns.flags.AA in result.flags: 
+            return result, ns # <- If got a rdata then return it
+        
+        if result.additional:
+            random.shuffle(result.additional)
+            for rr in result.additional:
+                ns = str(rr[0])
+                if ipaddress.ip_address(ns).version == 4:
+                    result, ns = Recursive.resolve(self,query, ns, depth)
+                    if result.rcode() in [
+                        dns.rcode.NOERROR]: return result, ns
+            return result, ns
+
+        elif result.authority:
+            for authlist in result.authority:
+                for rr in authlist.processing_order():
+                    qname = dns.name.from_text(str(rr))
+                    nsquery = dns.message.make_query(qname, dns.rdatatype.A, dns.rdataclass.IN)
+                    for ns in _ROOT:
+                        nsdata, _ = Recursive.resolve(self, nsquery, ns, depth)
+                        if nsdata.rcode() is dns.rcode.REFUSED: break
+                        if not dns.rcode.NOERROR == nsdata.rcode():
+                            continue
+                        if nsdata.answer:
+                            for rr in nsdata.answer:
+                                ns = str(rr[0])
+                                if ipaddress.ip_address(ns).version == 4:
+                                    result, ns = Recursive.resolve(self, query, ns, depth)
+                                if result.rcode() in [
+                                    dns.rcode.NOERROR]: return result, ns
+                            return result, ns
 
     def extresolve(self, resolver, rdata):
         try:
@@ -86,102 +151,6 @@ class Recursive:
             answer.set_rcode(2)
         return answer
 
-    def resolve(self, rdata:dns.message.QueryMessage, nslist, depth, udp:socket.socket = None):
-        if type(nslist) is not list:
-            nslist = [nslist] # < - Create list of NameServers if it doesnt
-        random.shuffle(nslist)
-        #print(nslist)
-        for ns in nslist:
-            # -Checking current recursion depth-
-            try:
-                if depth >= self.depth: 
-                    raise Exception("Reach maxdetph - %s!" % self.depth)# <- Set max recursion depth
-                depth += 1
-                if _DEBUG == 1: print(f"{depth}: {ns}") # <- SOME DEBUG
-            except:
-                result = dns.message.make_response(rdata)
-                result.set_rcode(2)
-                #logging.exception(f'Resolve: #1, qname - {result.question[0].name}')
-                return result, None
-            
-            # -Trying to get answer from authority nameserver-
-            try:
-                result = dns.query.udp(rdata,ns,1)
-                if rdata.id != result.id:
-                   raise dns.exception.DNSException('ID mismatch!')
-                # -- SOME DEBUG
-                if _DEBUG == 1: 
-                    print(f"From {ns}:")
-                    print(result.question[0])  
-                    if result.answer: 
-                        for a in result.answer:
-                            print(a)
-                    else:
-                        for a in result.additional:
-                            print(a)
-                    print('\n\n')
-            except dns.exception.Timeout:
-                continue
-            except dns.exception.DNSException:
-                logging.exception(f'Resolve: #2')
-                continue
-
-
-            if result.answer or result.rcode() != dns.rcode.NOERROR:
-                return result, ns # <- If got a rdata then return it
-            
-            elif not result.authority: # <- if not and there is no authority NS then domain doesnt exist
-                return result, ns
-            
-            NewNSlist = [] # <- IP list for authority NS
-            if result.additional:
-                for rr in result.additional:
-                    ip = ipaddress.ip_address(str(rr[0]))
-                    if ip.version == 4:
-                        NewNSlist.append(str(ip))
-
-            if not NewNSlist:
-                stream = []
-                for rr in result.authority[0]:
-                    qname = dns.name.from_text(str(rr))
-                    nsQuery = dns.message.make_query(qname, dns.rdatatype.A, dns.rdataclass.IN)
-                    t = GetNS(nsQuery, _ROOT, depth)
-                    t.start()
-                    stream.append(t)
-                for t in stream:
-                    t.join()
-                    try:
-                        NSdata, _ = t.result
-                        if NSdata.rcode == dns.rcode.REFUSED:
-                            continue
-                        if NSdata.answer:
-                            for rr in NSdata.answer:
-                                NewNSlist.append(str(rr[0]))
-                    except Exception as e:
-                        print(e)
-                        #logging.exception('Resolve #3:') 
-                        continue
-                '''for rr in result.authority[0]:
-                    qname = dns.name.from_text(str(rr))
-                    nsQuery = dns.message.make_query(qname, dns.rdatatype.A, dns.rdataclass.IN)
-                    NSdata, _ = Recursive.resolve(self, nsQuery, _ROOT, self.udp, depth)
-                    try: 
-                        if NSdata.rcode == dns.rcode.REFUSED:
-                            continue
-                        if NSdata.answer:
-                            print(NSdata.answer)
-                            for rr in NSdata.answer:
-                                NewNSlist.append(str(rr[0]))
-                            #break
-                    except:
-                        logging.exception('Resolve #3:') 
-                        continue'''
-            if NewNSlist:
-                NewResult = Recursive.resolve(self, rdata, NewNSlist, depth, udp)
-                return NewResult
-            else:
-                result.set_rcode(3)
-                return result, ns
            
 
 class GetNS(threading.Thread):
@@ -199,3 +168,18 @@ class GetNS(threading.Thread):
         
         R = Recursive()
         self.result = R.resolve(self.query, self.nslist, self.depth, self.udp)
+
+if __name__ == "__main__":
+    udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    conf = {
+        "resolver": None,
+        "depth": 30
+    }
+    udp.bind(('127.0.0.2', 5300))
+    R = Recursive(timeout=0.05)
+    while True:
+        data, client  = udp.recvfrom(512)
+        message = dns.message.from_wire(data)
+        answer, ns, rt = R.recursive(message)
+        udp.sendto(answer.to_wire(message.origin),client)
+

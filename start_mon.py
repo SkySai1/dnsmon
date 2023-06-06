@@ -13,7 +13,7 @@ from multiprocessing import Process
 from initconf import getconf
 from backend.namservers import Nameservers, NScheck
 from backend.accessdb import Base, enginer, AccessDB
-from backend.domains import Domains, DomainResolve, make_fqdn
+from backend.names import Domains, NameResolve, Zones, make_fqdn
 from threading import Thread
 
 
@@ -26,7 +26,7 @@ def launch_domain_check(domains_list):
     for d in domains_list:
         try:
             domain = dns.name.from_text(d)
-            t = DomainResolve(domain, _DEBUG)
+            t = NameResolve(_CONF, domain, _DEBUG)
             t.start()
             stream.append(t)
         except: pass
@@ -47,7 +47,7 @@ def launch_domain_check(domains_list):
         D.parse(data, auth, db) # <- preparing resolved data to load into DB
         if data.rcode() == dns.rcode.NOERROR and ns:
             if not ns in ns_stats: ns_stats[ns] = []
-            ns_stats[ns].append((rt, data.time))
+            ns_stats[ns].append(data.time)
     if ns_stats: NS.resolvetime(ns_stats, db)
     #for ns in ns_stats: print(ns)
 
@@ -58,7 +58,8 @@ def launch_ns_check(nslist, zones):
     NS = Nameservers(_CONF)
     for ns in nslist:
         group = nslist[ns][1]
-        t = NScheck(_CONF, ns, group, zones, _DEBUG)
+        name = nslist[ns][0]
+        t = NScheck(_CONF, ns, group, zones, _DEBUG, name)
         t.start()
         stream.append(t)
     for t in stream:
@@ -67,7 +68,33 @@ def launch_ns_check(nslist, zones):
         if ns in nslist: ns = nslist[ns][0]
         if t.empty is False:
             NS.parse(ns, t.data, db)
-    
+
+# --Zones Trace Resolve
+def launch_zones_check(zones):
+    # -- Make resolve in another thread for each zone --
+    stream = []
+    for group in zones:
+        for zone in zones[group]:
+            try:
+                zone = dns.name.from_text(zone)
+                t = NameResolve(_CONF, zone, _DEBUG, dns.rdatatype.SOA)
+                t.start()
+                stream.append(t)
+            except: pass
+
+    # -- Collect data from each thread and do things --
+    ns_stats = {}
+    Z = Zones(_CONF)
+    db = AccessDB(_CONF)
+    zn_stats = {}
+    for t in stream:
+        t.join()
+        data, _, rt = t.value
+        zn = data.question[0].name.to_text()
+        if not zn in ns_stats: zn_stats[zn] = []
+        if data.rcode() is not dns.rcode.NOERROR: rt = 0
+        zn_stats[zn] = rt
+    if zn_stats: Z.resolvetime(zn_stats, db)
 
 def get_list(path):
     with open(path, "r") as f:
@@ -122,8 +149,9 @@ if __name__ == '__main__':
     domain_service = Domains(_CONF)
     domainDB = AccessDB(_CONF)
     processes = [
-        {launch_domain_check: [domains_list]},
-        {launch_ns_check: [ns_list, zones]},
+        #{launch_domain_check: [domains_list]},
+        #{launch_ns_check: [ns_list, zones]},
+        {launch_zones_check: [zones]},
         {domain_service.sync: [domains_list, domainDB]}
     ]
     try:

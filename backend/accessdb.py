@@ -38,14 +38,31 @@ class Domains(Base):
     message = Column(Text)
     auth = Column(String(255), default = None)
 
-class TimeResolve(Base):  
-    __tablename__ = "timeresolve" 
+class Zones(Base):
+    __tablename__ = "zones"
+    id = Column(BigInteger, primary_key=True)
+    node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
+    ts = Column(DateTime(timezone=True), nullable=False)
+    zone = Column(String(255), nullable=False)
+    status = Column(SmallInteger, nullable=False)
+    serial = Column(Integer)
+    message = Column(Text)
+
+class ZonesResolve(Base):  
+    __tablename__ = "zoneresolve" 
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
+    ts = Column(DateTime(timezone=True), nullable=False)
+    zone = Column(String(255), nullable=False)  
+    rtime = Column(Float)
+
+class NSresolve(Base):  
+    __tablename__ = "nsresolve" 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
     ts = Column(DateTime(timezone=True), nullable=False)
     server = Column(String(255), nullable=False)  
     rtime = Column(Float)
-    rtime_short = Column(Float)
 
 class Servers(Base):  
     __tablename__ = "servers" 
@@ -87,10 +104,13 @@ class AccessDB:
             except:
                 logging.exception('CREATING NEW NODE:')
 
-    def InsertTimeresolve(self, data):
+    def InsertTimeresolve(self, data, isns:bool = True):
+        if isns is True: Object = NSresolve
+        else: Object = ZonesResolve
+
         with Session(self.engine) as conn:
             try:
-                conn.execute(insert(TimeResolve), data)
+                conn.execute(insert(Object), data)
                 conn.commit()
             except:
                 logging.exception('INSERT TIMERESOLVE:')
@@ -181,6 +201,49 @@ class AccessDB:
                 conn.close()
             except:
                 logging.exception('UPDATE DOMAINS TABLE:')
+
+    def UpdateZones(self, zone, error:dns.rcode, serial:int = None, message = None):
+        with Session(self.engine) as conn:
+            try:
+                check = (select(Zones)
+                         .filter(Zones.zone == zone)
+                         .filter(Zones.node == self.node))
+                check = conn.execute(check).fetchall()
+                if check:
+                    if error == dns.rcode.NOERROR:
+                        stmt = (update(Zones).values(
+                            ts = getnow(self.timedelta),
+                            status = 1,
+                            serial = serial,
+                            message = message
+                            ).filter(Zones.zone == zone)
+                            .filter(Zones.node == self.node)
+                        )
+                    else:
+                        stmt = (update(Zones).values(
+                            status = 0,
+                            serial = serial,
+                            message = message
+                            ).filter(Zones.zone == zone)
+                            .filter(Zones.node == self.node)
+                        )
+                else:
+                    if error != dns.rcode.NOERROR:
+                        status = 0
+                    else: status = 1
+                    stmt = insert(Zones).values(
+                        ts= getnow(self.timedelta),
+                        node = self.node,
+                        zone = zone,
+                        status = status,
+                        serial = serial,
+                        message = message
+                        )
+                conn.execute(stmt)
+                conn.commit()
+                conn.close()
+            except:
+                logging.exception('UPDATE ZONES TABLE:')
 
     def GetDomain(self, domain=None):
         with Session(self.engine) as conn:
