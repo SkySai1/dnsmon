@@ -31,6 +31,7 @@ class NScheck(Thread):
         for group in self.zones:
             if group != self.group: continue
             for zone in self.zones[group]:
+                self.serials[zone] = {}
                 #time.sleep(0.1)
                 try:
                     qname = dns.name.from_text(zone)
@@ -44,24 +45,20 @@ class NScheck(Thread):
                     if self.answer.rcode() is not dns.rcode.NOERROR:
                         error = dns.rcode.to_text(self.answer.rcode())
                         self.data.append(f"{zone}: {error}")
-                        serial = None
                     else:
                         serial = self.answer.answer[0][0].serial
                         self.empty = False
-                    self.serials[zone] = (serial, self.answer.rcode())
+                        self.serials[zone]['serial'] = int(serial)
 
+                    self.serials[zone]['status'] = self.answer.rcode()
                     # Внизу костыль, УБРАТЬ!
                     if self.ns in ['185.247.195.1', '185.247.195.2']: 
                         rtime.append(self.answer.time)
                     # Конец костыля
-
-                except dns.exception.Timeout as timeout:
-                    self.empty = False
-                    self.data.append(f"{zone}: {str(timeout)}")
-                    continue
                 except Exception as e:
+                    self.serials[zone]['status'] = str(e)
                     self.empty = False
-                    self.data.append(f"{zone}: {str(timeout)}")
+                    self.data.append(f"{zone}: {str(e)}")
                     continue
 
         # Продолжение костыля. УБРАТЬ!

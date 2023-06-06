@@ -44,7 +44,7 @@ class Zones(Base):
     node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
     ts = Column(DateTime(timezone=True), nullable=False)
     zone = Column(String(255), nullable=False)
-    status = Column(SmallInteger, nullable=False)
+    status = Column(Integer, nullable=False)
     serial = Column(Integer)
     message = Column(Text)
 
@@ -202,7 +202,7 @@ class AccessDB:
             except:
                 logging.exception('UPDATE DOMAINS TABLE:')
 
-    def UpdateZones(self, zone, error:dns.rcode, serial:int = None, message = None):
+    def UpdateZones(self, zone, status, serial:int = None, message = None):
         with Session(self.engine) as conn:
             try:
                 check = (select(Zones)
@@ -210,10 +210,10 @@ class AccessDB:
                          .filter(Zones.node == self.node))
                 check = conn.execute(check).fetchall()
                 if check:
-                    if error == dns.rcode.NOERROR:
+                    if status == 1:
                         stmt = (update(Zones).values(
                             ts = getnow(self.timedelta),
-                            status = 1,
+                            status = serial,
                             serial = serial,
                             message = message
                             ).filter(Zones.zone == zone)
@@ -228,9 +228,7 @@ class AccessDB:
                             .filter(Zones.node == self.node)
                         )
                 else:
-                    if error != dns.rcode.NOERROR:
-                        status = 0
-                    else: status = 1
+                    if status == 1: status = serial
                     stmt = insert(Zones).values(
                         ts= getnow(self.timedelta),
                         node = self.node,

@@ -60,19 +60,39 @@ class Zones:
         self.timedelta = conf['timedelta']
         self.node = conf['node']
 
-    def parse(self, data):
+    def parse(self, data, db:AccessDB):
         zones = {}
         for ns in data:
+            #print(ns)
             for zn in data[ns]:
-                if not zn in zones: zones[zn] = []
-                zones[zn].append((ns, data[ns][zn]))
+                #print(zn)
+                #print(data[ns][zn])
+                if not zn in zones: zones[zn] = {}
+                zones[zn][ns] = data[ns][zn]
 
         for zone in zones:
-            random.shuffle(zones[zone])
-            control = zones[zone][0]
-            for ns_serial in zones[zone]:
-                if ns_serial[1] == control[1]:
-                    print(ns_serial)
+            serial = 0
+            status = 1
+            message = []
+            for ns in zones[zone]:
+                if 'serial' not in zones[zone][ns]: continue
+                if zones[zone][ns]['serial'] > serial:
+                    serial = zones[zone][ns]['serial']
+            for ns in zones[zone]:
+                if zones[zone][ns]['status'] is not dns.rcode.NOERROR:
+                    status = 0
+                    message.append(f"{ns}: {zones[zone][ns]['status']}")
+                    continue
+                if zones[zone][ns]['serial'] < serial:
+                    status = 0
+                    message.append(f"{ns}: bad serial - {zones[zone][ns]['serial']}")
+            message = " & ".join(message)
+            db.UpdateZones(zone, status, serial, message)    
+
+
+                
+
+
 
     def resolvetime(self, data, db:AccessDB):
         stats = []

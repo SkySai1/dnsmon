@@ -72,7 +72,7 @@ def launch_ns_check(nslist, zones):
         if t.empty is False:
             NS.parse(ns, t.data, db)
             stats[ns] = t.serials
-    Z.parse(stats)
+    Z.parse(stats, db)
 
 # --Zones Trace Resolve
 def launch_zones_check(zones):
