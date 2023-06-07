@@ -170,8 +170,6 @@ if __name__ == '__main__':
     ]
     try:
         Process(target=geo.start, args=(domains_list,)).start()
-        while True:
-            Parallel(processes)
-            time.sleep(_CONF['refresh'])
+        Parallel(processes)
     except KeyboardInterrupt:
         pass

@@ -74,30 +74,28 @@ class Available:
         return geobase
     
     def start(self, domains):
-        while True:
-            stream = []
-            for country in self.geo:
-                j = 0
-                for city in self.geo[country]:
-                    #if j >=2: break
-                    random.shuffle(self.geo[country][city])
-                    k = 0
-                    for server in self.geo[country][city]:
-                        if k >=2: break
-                        qname = dns.name.from_text(random.choice(domains))
-                        T = Scanner(self.conf, qname, server["ip"])
-                        T.start()
-                        stream.append((T, country, city))
-                        k+=1
-                    j+=1
+        stream = []
+        for country in self.geo:
+            j = 0
+            for city in self.geo[country]:
+                #if j >=2: break
+                random.shuffle(self.geo[country][city])
+                k = 0
+                for server in self.geo[country][city]:
+                    if k >=2: break
+                    qname = dns.name.from_text(random.choice(domains))
+                    T = Scanner(self.conf, qname, server["ip"])
+                    T.start()
+                    stream.append((T, country, city))
+                    k+=1
+                j+=1
 
-            for t, country, city in stream:
-                t.join()
-                if type(t.value) is not NoneType:
-                    self.db.InsertGeostate(t.ip, t.value)
-                    #print(f"{country} {city} {t.ip}: {str(t.value)}")
-            self.db.RemoveGeo()
-            self.conf['sleep']
+        for t, country, city in stream:
+            t.join()
+            if type(t.value) is not NoneType:
+                self.db.InsertGeostate(t.ip, t.value)
+                #print(f"{country} {city} {t.ip}: {str(t.value)}")
+        self.db.RemoveGeo()
         
     
     def clear(self):
