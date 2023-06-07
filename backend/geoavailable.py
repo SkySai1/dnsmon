@@ -2,9 +2,7 @@
 import logging
 import random
 from threading import Thread
-import json
 from types import NoneType
-import nmap
 import dns.message
 import dns.query
 import dns.rcode
@@ -27,7 +25,6 @@ class Scanner(Thread):
  
     def run(self):
         port = 53
-        scan = nmap.PortScanner()
         try:
             #result = scan.scan(self.ip, str(port), '-Pn -sV -sU',timeout=5)
             #res = result['scan'][ip]['udp'][53]['state']
