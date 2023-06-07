@@ -53,20 +53,6 @@ class Scrapper:
         return location, data["ip"]
 
 
-'''if coordinates and re.match('^[0-9]+.[0-9]+.[0-9]+.[0-9]+$', ip): 
-    qname = dns.name.from_text(random.choice(self.domains))
-    T = Scanner(self.conf, qname, ip, city, coordinates)
-    T.start()
-    stream.append(T)
-
-for t in stream:
-t.join() 
-#state = Scrapper.scanner(self, ip)
-if t.value is not None:
-    print(f"{t.city} {t.ip} {t.coordinates}: {str(t.value)}")
-#else: print(f"{t.city} {t.ip}: closed")'''
-
-
 if __name__ == "__main__":
     try:
         _CONF = getconf(sys.argv[1])

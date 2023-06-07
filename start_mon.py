@@ -14,6 +14,7 @@ from initconf import getconf
 from backend.namservers import Nameservers, NScheck
 from backend.accessdb import Base, enginer, AccessDB
 from backend.names import Domains, NameResolve, Zones, make_fqdn
+from backend.geoavailable import Available
 from threading import Thread
 
 
@@ -157,6 +158,8 @@ if __name__ == '__main__':
     domainDB = AccessDB(_CONF)
     zoneDB = AccessDB(_CONF)
     nsDB = AccessDB(_CONF)
+    geoDB = AccessDB(_CONF)
+    geo = Available(_CONF, geoDB)
     processes = [
         {launch_domain_check: [domains_list]},
         {launch_ns_and_zones_check: [ns_list, zones]},
@@ -166,6 +169,7 @@ if __name__ == '__main__':
         {ns_service.sync: [ns_list, nsDB]}
     ]
     try:
+        Process(target=geo.start, args=(domains_list,)).start()
         while True:
             Parallel(processes)
             time.sleep(_CONF['refresh'])

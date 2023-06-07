@@ -84,18 +84,18 @@ class GeoBase(Base):
     country = Column(String)
     city = Column(String)
 
-class Geo(Base):  
+class GeoState(Base):  
     __tablename__ = "geostate" 
-    id = Column(BigInteger, primary_key=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
-    server = Column(String(255), ForeignKey('geobase.ip', ondelete='cascade'), nullable=False)
+    ip = Column(String(255), ForeignKey('geobase.ip', ondelete='cascade'), nullable=False)
     ts = Column(DateTime(timezone=True), nullable=False)  
-    status = Column(SmallInteger, nullable=False)
-    message = Column(Text)
+    state = Column(SmallInteger, nullable=False)
 
 class AccessDB:
     def __init__(self, _CONF):
         self.engine = enginer(_CONF)
+        self.conf = _CONF
         self.timedelta = _CONF['timedelta']
         self.node = _CONF['node']
     
@@ -116,6 +116,30 @@ class AccessDB:
                 pass
             except Exception as e:
                 logging.exception('INSERT GEO BASE:')
+    
+    def InsertGeostate(self, ip, state):
+        with Session(self.engine) as conn:
+            try:
+                check = conn.execute(select(GeoState.ip).filter(GeoState.ip == ip)).first()
+                if check:
+                    stmt = (update(GeoState)
+                            .filter(GeoState.ip == ip)
+                            .values(
+                                ts = getnow(self.timedelta, 0),
+                                state = state
+                            )
+                    )
+                else:
+                    stmt = (insert(GeoState).values(
+                        node = self.node,
+                        ts = getnow(self.timedelta, 0),
+                        ip = ip,
+                        state = state
+                    ))
+                conn.execute(stmt)
+                conn.commit()
+            except:
+                logging.exception('INSERT GEO STATE:')
 
     def NewNode(self):
         with Session(self.engine) as conn:
@@ -342,6 +366,25 @@ class AccessDB:
                 conn.commit()
             except:
                 logging.exception('REMOVE server FROM DB:')
+    
+    def GetGeo(self):
+        with Session(self.engine) as conn:
+            try:
+                data = conn.execute(select(GeoBase)).fetchall()
+                return data
+            except:
+                logging.exception('Get GEO from DB')
+    def RemoveGeo(self):
+        with Session(self.engine) as conn:
+            try:
+                stmt = (delete(GeoState)
+                        .filter(GeoState.ts <= getnow(self.timedelta, -self.conf['keep']))
+                        .returning(GeoState.ip)
+                )
+                result = conn.scalars(stmt).all()
+                conn.commit()
+            except:
+                logging.exception('Remove stats from GeoState')
     
 def getnow(delta, rise = 0):
     offset = datetime.timedelta(hours=delta)
