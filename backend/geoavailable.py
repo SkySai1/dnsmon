@@ -85,6 +85,7 @@ class Available:
                 stream.append(T)
         for t in stream:
             t.join()
+        self.db.RemoveGeo()
         logging.info('Finished geocheck')
         
     
