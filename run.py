@@ -180,3 +180,4 @@ def handler(event, context):
         Parallel(processes)
     except KeyboardInterrupt:
         pass
+handler(None, None)
