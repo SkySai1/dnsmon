@@ -102,6 +102,16 @@ class Zones:
                  )
         db.InsertTimeresolve(stats, False)
 
+    def sync(self, zones, db:AccessDB):
+        try:
+            zlist_from_db = db.GetZone()
+            for group in zones:
+                for z in zlist_from_db:
+                    if not z[0] in zones[group]:
+                        db.RemoveZone(z[0])
+        except Exception as e:
+            print(e)
+
 def make_fqdn(dlist):
     new_dlist = []
     for d in dlist:

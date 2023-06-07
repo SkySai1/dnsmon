@@ -103,3 +103,16 @@ class Nameservers:
     
     def parse(self, ns, data, db:AccessDB):
         db.UpdateNS(ns, data)
+
+    def sync(self, nslist, db:AccessDB):
+        try:
+            nslist_from_db = db.GetNS()
+            nsnames = []
+            for addr in nslist:
+                nsnames.append(nslist[addr][0])
+
+            for ns in nslist_from_db:
+                if not ns[0] in nsnames:
+                    db.RemoveNS(ns[0])
+        except Exception as e:
+            print(e)

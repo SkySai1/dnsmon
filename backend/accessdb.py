@@ -32,7 +32,7 @@ class Domains(Base):
     id = Column(BigInteger, primary_key=True)
     node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
     ts = Column(DateTime(timezone=True), nullable=False)  
-    domain = Column(String(255), nullable=False)  
+    domain = Column(String(255), nullable=False, unique = True)  
     status = Column(SmallInteger, nullable=False)
     result = Column(Text)
     message = Column(Text)
@@ -43,7 +43,7 @@ class Zones(Base):
     id = Column(BigInteger, primary_key=True)
     node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
     ts = Column(DateTime(timezone=True), nullable=False)
-    zone = Column(String(255), nullable=False)
+    zone = Column(String(255), nullable=False, unique = True)
     status = Column(Integer, nullable=False)
     serial = Column(Integer)
     message = Column(Text)
@@ -69,7 +69,7 @@ class Servers(Base):
     id = Column(BigInteger, primary_key=True)
     node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
     ts = Column(DateTime(timezone=True), nullable=False)  
-    server = Column(String(255), nullable=False)  
+    server = Column(String(255), nullable=False, unique = True)  
     status = Column(SmallInteger, nullable=False)
     message = Column(Text)
 
@@ -268,6 +268,55 @@ class AccessDB:
             except:
                 logging.exception('REMOVE DOMAIN FROM DB:')
 
+    def GetZone(self, zone=None):
+        with Session(self.engine) as conn:
+            try:
+                if zone:
+                    stmt = (select(Zones.zone)
+                            .filter(Zones.zone == zone)
+                            .filter(Zones.node == self.node))
+                else:
+                    stmt = select(Zones.zone)
+                result = conn.execute(stmt).fetchall()
+                return result
+            except:
+                logging.exception('GET ZONE FROM DB:')
+        
+    def RemoveZone(self, zone):
+        with Session(self.engine) as conn:
+            try:
+                stmt = (delete(Zones)
+                        .filter(Zones.zone == zone)
+                        .filter(Zones.node == self.node))
+                conn.execute(stmt)
+                conn.commit()
+            except:
+                logging.exception('REMOVE ZONE FROM DB:')
+
+    def GetNS(self, server=None):
+        with Session(self.engine) as conn:
+            try:
+                if server:
+                    stmt = (select(Servers.server)
+                            .filter(Servers.server == server)
+                            .filter(Servers.node == self.node))
+                else:
+                    stmt = select(Servers.server)
+                result = conn.execute(stmt).fetchall()
+                return result
+            except:
+                logging.exception('GET server FROM DB:')
+        
+    def RemoveNS(self, server):
+        with Session(self.engine) as conn:
+            try:
+                stmt = (delete(Servers)
+                        .filter(Servers.server == server)
+                        .filter(Servers.node == self.node))
+                conn.execute(stmt)
+                conn.commit()
+            except:
+                logging.exception('REMOVE server FROM DB:')
     
 def getnow(delta, rise = 0):
     offset = datetime.timedelta(hours=delta)

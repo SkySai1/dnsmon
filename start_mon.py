@@ -73,7 +73,6 @@ def launch_ns_and_zones_check(nslist, zones):
             NS.parse(ns, t.data, db)
             stats[ns] = t.serials
     Z.parse(stats, db)
-    time.sleep(5)
 
 # --Zones Trace Resolve
 def launch_zones_resolve(zones):
@@ -153,12 +152,18 @@ if __name__ == '__main__':
 
 
     domain_service = Domains(_CONF)
+    zone_service = Zones(_CONF)
+    ns_service = Nameservers(_CONF)
     domainDB = AccessDB(_CONF)
+    zoneDB = AccessDB(_CONF)
+    nsDB = AccessDB(_CONF)
     processes = [
         {launch_domain_check: [domains_list]},
         {launch_ns_and_zones_check: [ns_list, zones]},
         {launch_zones_resolve: [zones]},
-        {domain_service.sync: [domains_list, domainDB]}
+        {domain_service.sync: [domains_list, domainDB]},
+        {zone_service.sync: [zones, zoneDB]},
+        {ns_service.sync: [ns_list, nsDB]}
     ]
     try:
         while True:
