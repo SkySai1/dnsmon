@@ -122,7 +122,7 @@ def Parallel(data):
     for p in proc:
         p.join()
 
-def handler():
+def handler(event, context):
     # -- Get options from config file --
     try:
         _CONF = getconf('./config.conf')
