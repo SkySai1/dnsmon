@@ -17,7 +17,9 @@ _OPTIONS =[
     'dbpass',
     'dbhost',
     'dbport',
-    'dbname'
+    'dbname',
+    'token',
+    'count'
 ]
 
 def getconf(path):
@@ -40,6 +42,8 @@ def filter(config):
     config['publicns'] = os.path.abspath(config['publicns'])
     config['timedelta'] = int(config['timedelta'])
     config['refresh'] = float(config['refresh'])
+    config['token'] = str(config['token'])
+    config['count'] = int(config['count'])
     return config
 
 
@@ -72,6 +76,10 @@ def deafultconf():
         "dbhost": DBHost,
         "dbport": 5432,
         "dbname": DBName
+    }
+    config['GEO'] = {
+        "token": '',
+        "count": 100
     }
     return config
 

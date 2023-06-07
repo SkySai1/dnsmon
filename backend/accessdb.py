@@ -3,6 +3,8 @@ import sys
 import logging
 import uuid
 import dns.rcode
+import psycopg2.errors
+import sqlalchemy.exc
 from sqlalchemy.orm import declarative_base, Session, scoped_session, sessionmaker
 from sqlalchemy import ForeignKey, engine, Integer, Column, Float, Text, DateTime, SmallInteger, BigInteger, String, create_engine, insert, select, update, delete
 from sqlalchemy.dialects.postgresql import UUID
@@ -73,18 +75,23 @@ class Servers(Base):
     status = Column(SmallInteger, nullable=False)
     message = Column(Text)
 
+class GeoBase(Base):
+    __tablename__ = "geobase"
+    id = Column(BigInteger, primary_key=True)
+    ip = Column(String, nullable=False, unique = True)
+    latitude = Column(Float) # <- First value in coordinates
+    longitude = Column(Float) # <- Second value in coordinates
+    country = Column(String)
+    city = Column(String)
+
 class Geo(Base):  
-    __tablename__ = "geomap" 
+    __tablename__ = "geostate" 
     id = Column(BigInteger, primary_key=True)
     node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
+    server = Column(String(255), ForeignKey('geobase.ip', ondelete='cascade'), nullable=False)
     ts = Column(DateTime(timezone=True), nullable=False)  
-    server = Column(String(255), nullable=False)  
     status = Column(SmallInteger, nullable=False)
     message = Column(Text)
-    latitude = Column(Float)
-    longitude = Column(Float)
-    region = Column(String(255))
-    country = Column(String(255))
 
 class AccessDB:
     def __init__(self, _CONF):
@@ -92,6 +99,24 @@ class AccessDB:
         self.timedelta = _CONF['timedelta']
         self.node = _CONF['node']
     
+    def InsertGeobase(self, ip, lat, long, city, country):
+        with Session(self.engine) as conn:
+            try:
+                stmt = (insert(GeoBase).values(
+                    ip = ip,
+                    latitude = lat,
+                    longitude = long,
+                    city = city,
+                    country = country
+                ))
+                conn.execute(stmt)
+                conn.commit()
+
+            except sqlalchemy.exc.IntegrityError:
+                pass
+            except Exception as e:
+                logging.exception('INSERT GEO BASE:')
+
     def NewNode(self):
         with Session(self.engine) as conn:
             try:
