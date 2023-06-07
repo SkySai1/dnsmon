@@ -1,4 +1,5 @@
 
+import logging
 import random
 from threading import Thread
 import json
@@ -74,6 +75,7 @@ class Available:
         return geobase
     
     def start(self, domains):
+        logging.info("Starting geocheck")
         stream = []
         for country in self.geo:
             j = 0
@@ -96,6 +98,7 @@ class Available:
                 self.db.InsertGeostate(t.ip, t.value)
                 #print(f"{country} {city} {t.ip}: {str(t.value)}")
         self.db.RemoveGeo()
+        logging.info('Finished geocheck')
         
     
     def clear(self):
