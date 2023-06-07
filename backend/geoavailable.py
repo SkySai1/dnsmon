@@ -27,22 +27,25 @@ class Scanner(Thread):
     def run(self):
         port = 53
         try:
-            random.shuffle(self.data)
-            k = 0
-            for server in self.data:
-                if k >=2: break
-                qname = dns.name.from_text(random.choice(self.domains))
-                for i in range(2):
-                    try:
-                        query = dns.message.make_query(qname, dns.rdatatype.A)
-                        r = dns.query.udp(query, server["ip"], 5)
-                        if r.rcode() is dns.rcode.NOERROR: 
-                            break
-                    except Exception as e:
-                        r = None
-                k+=1
-                if r: 
-                    self.db.InsertGeostate(server["ip"], r.rcode())
+            j=0
+            for city in self.data:
+                if j>=2: break
+                random.shuffle(self.data[city])
+                k = 0
+                for server in self.data[city]:
+                    if k >=5: break
+                    qname = dns.name.from_text(random.choice(self.domains))
+                    for i in range(2):
+                        try:
+                            query = dns.message.make_query(qname, dns.rdatatype.A)
+                            r = dns.query.udp(query, server["ip"], 5)
+                            if r.rcode() is dns.rcode.NOERROR: 
+                                break
+                        except Exception as e:
+                            r = None
+                    if r: self.db.InsertGeostate(server["ip"], r.rcode())
+                    k+=1
+                j+=1
         except Exception as e:
             self.state = 'closed'
 
@@ -77,12 +80,10 @@ class Available:
         logging.info("Starting geocheck")
         stream = []
         db = AccessDB(self.conf)
-        for country in self.geo:
-            j = 0
-            for city in self.geo[country]:
-                T = Scanner(self.conf, self.geo[country][city], domains, db)
-                T.start()
-                stream.append(T)
+        for country in self.geo:               
+            T = Scanner(self.conf, self.geo[country], domains, db)
+            T.start()
+            stream.append(T)
         for t in stream:
             t.join()
         self.db.RemoveGeo()
