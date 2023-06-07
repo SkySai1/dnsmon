@@ -9,7 +9,7 @@ import requests
 import re
 from backend.accessdb import AccessDB, Base, enginer
 from initconf import getconf
-from start_mon import get_list
+from run import get_list
 
 class Scrapper:
     def __init__(self, conf, db:AccessDB):
@@ -77,4 +77,4 @@ if __name__ == "__main__":
     S = Scrapper(_CONF, db)
     for url in urllist:
         print(url)
-        S.scrap(url)
+        #S.scrap(url)
