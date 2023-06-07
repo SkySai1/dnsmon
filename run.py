@@ -126,7 +126,7 @@ def Parallel(data):
 if __name__ == '__main__':
     # -- Get options from config file --
     try:
-        _CONF = getconf(sys.argv[1])
+        _CONF = getconf('./config.conf')
         _DEBUG = _CONF['debug']
     except IndexError:
         print('Specify path to config file')
