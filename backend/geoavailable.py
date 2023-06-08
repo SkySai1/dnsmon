@@ -45,13 +45,11 @@ class Scanner(Thread):
                             r = None
                     if r:
                         if r.answer: 
-                            self.value = r.set_rcode(dns.rcode.NOERROR)
+                            self.db.InsertGeostate(server["ip"], dns.rcode.NOERROR)
                         elif r.rcode() is dns.rcode.NOERROR:
-                            self.value = r.set_rcode(dns.rcode.SERVFAIL)
-                        else:
-                            self.value = r.rcode()
-                        
-                        self.db.InsertGeostate(server["ip"], self.value)
+                            self.db.InsertGeostate(server["ip"], dns.rcode.SERVFAIL)
+                        elif r.rcode():
+                            self.db.InsertGeostate(server["ip"], r.rcode())
                     k+=1
                 j+=1
         except Exception as e:
