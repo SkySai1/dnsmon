@@ -47,7 +47,7 @@ class Scanner(Thread):
                     self.value = r.set_rcode(dns.rcode.NOERROR)
                 elif r.rcode() is dns.rcode.NOERROR:
                     self.value = r.set_rcode(dns.rcode.SERVFAIL)
-                else:
+                elif r.rcode():
                     self.value = r.rcode()
         except Exception as e:
             self.state = 'closed'
