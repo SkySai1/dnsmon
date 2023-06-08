@@ -66,12 +66,12 @@ class Recursive:
             # - Internal resolving if it is empty
             try:
                 start = time.time()
-                for ns in _ROOT:
-                    result, auth = Recursive.resolve(self, query, ns, 0)
-                    if dns.flags.AA in result.flags: break
+                for i in range(2):
+                    result, auth = Recursive.resolve(self, query, _ROOT[i], 0)
+                    if result and dns.flags.AA in result.flags: break
                 if not result: raise Exception 
             except: # <-In any troubles at process resolving returns request with SERVFAIL code
-                logging.exception(f'Stage: Recursive: {query.question}')
+                #logging.exception(f'Stage: Recursive: {query.question}')
                 result = dns.message.make_response(query)
                 result.set_rcode(2)
                 auth = None
@@ -118,9 +118,9 @@ class Recursive:
                 ns = str(rr[0])
                 if ipaddress.ip_address(ns).version == 4:
                     result, ns = Recursive.resolve(self,query, ns, depth)
-                    if result.rcode() in [
+                    if result and result.rcode() in [
                         dns.rcode.NOERROR]: return result, ns
-            return result, ns
+            return None, ns
 
         elif result.authority:
             for authlist in result.authority:
@@ -137,9 +137,10 @@ class Recursive:
                                 ns = str(rr[0])
                                 if ipaddress.ip_address(ns).version == 4:
                                     result, ns = Recursive.resolve(self, query, ns, depth)
-                                if result.rcode() in [
+                                if result and result.rcode() in [
                                     dns.rcode.NOERROR]: return result, ns
-                            return result, ns
+                            return None, ns
+        return None, ns
 
     def extresolve(self, resolver, rdata):
         try:
