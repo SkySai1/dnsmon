@@ -39,10 +39,11 @@ class Scanner(Thread):
                         try:
                             query = dns.message.make_query(qname, dns.rdatatype.A)
                             r = dns.query.udp(query, server["ip"], 5)
-                            if r.rcode() is dns.rcode.NOERROR: 
+                            if r.answer and r.rcode() is dns.rcode.NOERROR: 
                                 break
                         except Exception as e:
                             r = None
+                    
                     if r: self.db.InsertGeostate(server["ip"], r.rcode())
                     k+=1
                 j+=1
@@ -92,6 +93,4 @@ class Available:
     
     def clear(self):
         self.db.RemoveGeo()
-        
-
-
+    
