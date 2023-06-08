@@ -3,7 +3,6 @@ import random
 from threading import Thread
 import json
 from types import NoneType
-import nmap
 import dns.message
 import dns.query
 import dns.rcode
@@ -16,8 +15,8 @@ class Scanner(Thread):
 
     def __init__(self, conf, qname, ip):
         Thread.__init__(self)
+        self.response = None
         self.state = None
-        self.value = None
         self.conf = conf
         self.qname = qname
         self.ip = ip
@@ -26,7 +25,6 @@ class Scanner(Thread):
  
     def run(self):
         port = 53
-        scan = nmap.PortScanner()
         try:
             #result = scan.scan(self.ip, str(port), '-Pn -sV -sU',timeout=5)
             #res = result['scan'][ip]['udp'][53]['state']
@@ -36,21 +34,13 @@ class Scanner(Thread):
             for i in range(5):
                 try:
                     query = dns.message.make_query(self.qname, dns.rdatatype.A)
-                    r = dns.query.udp(query, self.ip, 5)
-                    if r.rcode() is dns.rcode.NOERROR and r.answer: 
+                    self.response = dns.query.udp(query, self.ip, 5)
+                    if self.response is dns.rcode.NOERROR and self.response.answer: 
                         break
                 except Exception as e:
-                    #print(e)
-                    r = None
-            if r:
-                if r.answer: 
-                    self.value = r.set_rcode(dns.rcode.NOERROR)
-                elif r.rcode() is dns.rcode.NOERROR:
-                    self.value = r.set_rcode(dns.rcode.SERVFAIL)
-                elif r.rcode():
-                    self.value = r.rcode()
+                    pass
         except Exception as e:
-            self.state = 'closed'
+            self.response is None
 
 
 class Available:
@@ -99,9 +89,13 @@ class Available:
 
             for t, country, city in stream:
                 t.join()
-                if type(t.value) is not NoneType:
-                    self.db.InsertGeostate(t.ip, t.value)
-                    #print(f"{country} {city} {t.ip}: {str(t.value)}")
+                r = t.response
+                if r:
+                    if r.answer:
+                        r.set_rcode(dns.rcode.NOERROR)
+                    elif not r.answer and r.rcode() is dns.rcode.NOERROR:
+                        r.set_rcode(dns.rcode.SERVFAIL)
+                    self.db.InsertGeostate(t.ip, r.rcode())
             self.db.RemoveGeo()
             self.conf['sleep']
         
