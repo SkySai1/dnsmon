@@ -128,7 +128,7 @@ def Parallel(data):
     for p in proc:
         p.join()
 
-def handler(event, context):
+def handler(event=None, context=None):
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     # -- Get options from config file --
     logging.info("dnschecker is run!")
@@ -180,3 +180,6 @@ def handler(event, context):
         Parallel(processes)
     except KeyboardInterrupt:
         pass
+
+if __name__ == "__main__":
+    handler()
