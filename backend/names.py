@@ -107,7 +107,7 @@ class Zones:
             zlist_from_db = db.GetZone()
             for group in zones:
                 for z in zlist_from_db:
-                    if not z[0] in zones[group]:
+                    if not z[0] in make_fqdn(zones[group]):
                         db.RemoveZone(z[0])
         except Exception as e:
             print(e)
