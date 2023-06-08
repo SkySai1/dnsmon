@@ -37,12 +37,18 @@ class Scanner(Thread):
                 try:
                     query = dns.message.make_query(self.qname, dns.rdatatype.A)
                     r = dns.query.udp(query, self.ip, 5)
-                    if r.rcode() is dns.rcode.NOERROR: 
+                    if r.rcode() is dns.rcode.NOERROR and r.answer: 
                         break
                 except Exception as e:
                     #print(e)
                     r = None
-            if r: self.value = r.rcode()
+            if r:
+                if r.answer: 
+                    self.value = r.set_rcode(dns.rcode.NOERROR)
+                elif r.rcode() is dns.rcode.NOERROR:
+                    self.value = r.set_rcode(dns.rcode.SERVFAIL)
+                else:
+                    self.value = r.rcode()
         except Exception as e:
             self.state = 'closed'
 
