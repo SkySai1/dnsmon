@@ -19,7 +19,7 @@ class NameResolve(Thread):
  
     def run(self):
         query = dns.message.make_query(self.qname, self.rtype)
-        R = Recursive(timeout=self.conf['timeout'])
+        R = Recursive(timeout=self.conf['short-timeout'])
         for i in range(3):
             self.value = R.recursive(query)
             if self.value[0].answer: 

@@ -39,7 +39,7 @@ class NScheck(Thread):
                     query = dns.message.make_query(qname, dns.rdatatype.SOA)
                     for i in range(5):
                         try:
-                            self.answer = dns.query.udp(query, self.ns, self.conf['timeout'])
+                            self.answer = dns.query.udp(query, self.ns, 3)
                             break
                         except dns.exception.Timeout as e:
                             if i >=2: raise e
