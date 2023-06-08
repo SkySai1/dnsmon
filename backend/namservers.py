@@ -33,13 +33,12 @@ class NScheck(Thread):
             if group != self.group: continue
             for zone in make_fqdn(self.zones[group]):
                 self.serials[zone] = {}
-                #time.sleep(0.1)
                 try:
                     qname = dns.name.from_text(zone)
                     query = dns.message.make_query(qname, dns.rdatatype.SOA)
                     for i in range(5):
                         try:
-                            self.answer = dns.query.udp(query, self.ns, 3)
+                            self.answer = dns.query.udp(query, self.ns, self.conf['timeout'])
                             break
                         except dns.exception.Timeout as e:
                             if i >=2: raise e
