@@ -33,7 +33,6 @@ class NScheck(Thread):
             if group != self.group: continue
             for zone in make_fqdn(self.zones[group]):
                 self.serials[zone] = {}
-                #time.sleep(0.1)
                 try:
                     qname = dns.name.from_text(zone)
                     query = dns.message.make_query(qname, dns.rdatatype.SOA)
