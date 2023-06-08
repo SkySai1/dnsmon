@@ -39,8 +39,9 @@ class Domains:
             error = data.rcode()
             if data.answer:
                 for rr in data.answer:
-                    if rr.rdtype == dns.rdatatype.A:
-                        rdata = ', '.join(str(v) for v in rr)
+                    #if rr.rdtype == dns.rdatatype.A:
+                    rdata = ', '.join(str(v) for v in rr)
+            else: error = dns.rcode.NXDOMAIN
             db.UpdateDomains(domain, error, auth, rdata)         
         except:
             logging.exception('DOMAIN PARSE:')
@@ -85,7 +86,7 @@ class Zones:
                     continue
                 if zones[zone][ns]['serial'] < serial:
                     status = 0
-                    message.append(f"{ns}: bad serial - {zones[zone][ns]['serial']}")
+                    message.append(f"{ns}: bad serial - {zones[zone][ns]['serial']} (the right is {serial})")
             message = " & ".join(message)
             db.UpdateZones(zone, status, serial, message)            
 
