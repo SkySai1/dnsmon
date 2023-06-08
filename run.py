@@ -182,4 +182,4 @@ def handler(event=None, context=None):
         pass
 
 if __name__ == "__main__":
-    handler()
+    handler() # <- for manual start
