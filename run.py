@@ -17,11 +17,11 @@ from backend.names import Domains, NameResolve, Zones, make_fqdn
 from backend.geoavailable import Available
 from threading import Thread
 
-
 # Modification of classic Threading
 
 # --Make the magic begin
-def launch_domain_check(domains_list):
+def launch_domain_check(domains_list, ns_list, _CONF, _DEBUG=None):
+    logging.info("Started domains check")
     # -- Make resolve in another thread for each domain --
     stream = []
     for d in domains_list:
@@ -50,10 +50,12 @@ def launch_domain_check(domains_list):
             if not ns in ns_stats: ns_stats[ns] = []
             ns_stats[ns].append(data.time)
     if ns_stats: NS.resolvetime(ns_stats, db)
+    logging.info("Ended domains check")
     #for ns in ns_stats: print(ns)
 
 # --NameServer checking
-def launch_ns_and_zones_check(nslist, zones):
+def launch_ns_and_zones_check(nslist, zones, _CONF, _DEBUG=None):
+    logging.info("Started NS and zones check")
     stream = []
     db = AccessDB(_CONF)
     NS = Nameservers(_CONF)
@@ -74,9 +76,11 @@ def launch_ns_and_zones_check(nslist, zones):
             NS.parse(ns, t.data, db)
             stats[ns] = t.serials
     Z.parse(stats, db)
+    logging.info("Ended NS and zones check")
 
 # --Zones Trace Resolve
-def launch_zones_resolve(zones):
+def launch_zones_resolve(zones, _CONF, _DEBUG = None):
+    logging.info("Started zone resolving")
     # -- Make resolve in another thread for each zone --
     stream = []
     for group in zones:
@@ -101,6 +105,7 @@ def launch_zones_resolve(zones):
         if data.rcode() is not dns.rcode.NOERROR: rt = 0
         zn_stats[zn] = rt
     if zn_stats: Z.resolvetime(zn_stats, db)
+    logging.info("Ended zone resolving")
 
 def get_list(path):
     with open(path, "r") as f:
@@ -123,10 +128,12 @@ def Parallel(data):
     for p in proc:
         p.join()
 
-if __name__ == '__main__':
+def handler(event=None, context=None):
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     # -- Get options from config file --
+    logging.info("dnschecker is run!")
     try:
-        _CONF = getconf(sys.argv[1])
+        _CONF = getconf('./config.conf')
         _DEBUG = _CONF['debug']
     except IndexError:
         print('Specify path to config file')
@@ -161,17 +168,18 @@ if __name__ == '__main__':
     geoDB = AccessDB(_CONF)
     geo = Available(_CONF, geoDB)
     processes = [
-        {launch_domain_check: [domains_list]},
-        {launch_ns_and_zones_check: [ns_list, zones]},
-        {launch_zones_resolve: [zones]},
+        {launch_domain_check: [domains_list, ns_list, _CONF]},
+        {launch_ns_and_zones_check: [ns_list, zones, _CONF]},
+        {launch_zones_resolve: [zones, _CONF]},
         {domain_service.sync: [domains_list, domainDB]},
         {zone_service.sync: [zones, zoneDB]},
-        {ns_service.sync: [ns_list, nsDB]}
+        {ns_service.sync: [ns_list, nsDB]},
+        {geo.start: [domains_list]}
     ]
     try:
-        Process(target=geo.start, args=(domains_list,)).start()
-        while True:
-            Parallel(processes)
-            time.sleep(_CONF['refresh'])
+        Parallel(processes)
     except KeyboardInterrupt:
         pass
+
+if __name__ == "__main__":
+    handler() # <- for manual start
