@@ -92,12 +92,43 @@ class GeoState(Base):
     ts = Column(DateTime(timezone=True), nullable=False)  
     state = Column(SmallInteger, nullable=False)
 
+class Logs(Base):
+    __tablename__ = "logs"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
+    ts = Column(DateTime(timezone=True), nullable=False)
+    level = Column(String(255), nullable = False)
+    object = Column(String(255), nullable = False)
+    message = Column(Text)  
+
+
 class AccessDB:
     def __init__(self, _CONF):
         self.engine = enginer(_CONF)
         self.conf = _CONF
         self.timedelta = _CONF['timedelta']
         self.node = _CONF['node']
+
+    def InsertLogs(self, level, object, message):
+        with Session(self.engine) as conn:
+            try:
+                stmt = (insert(Logs).values(
+                    node = self.node,
+                    ts = getnow(self.timedelta, 0),
+                    level = level,
+                    object = object,
+                    message = message
+                ))
+                conn.execute(stmt)
+                stmt = (delete(Logs)
+                        .filter(Logs.ts <= getnow(self.timedelta, -self.conf['storage']))
+                        .filter(Logs.node == self.node)
+                )
+                conn.execute(stmt)
+                conn.commit()
+
+            except:
+                logging.exception('INSERT LOGS:')
     
     def InsertGeobase(self, ip, lat, long, city, country):
         with Session(self.engine) as conn:
@@ -156,10 +187,14 @@ class AccessDB:
     def InsertTimeresolve(self, data, isns:bool = True):
         if isns is True: Object = NSresolve
         else: Object = ZonesResolve
-
         with Session(self.engine) as conn:
             try:
                 conn.execute(insert(Object), data)
+                stmt = (delete(Object)
+                        .filter(Object.ts <= getnow(self.timedelta, -self.conf['storage']))
+                        .filter(Object.node == self.node)
+                )
+                conn.execute(stmt)
                 conn.commit()
             except:
                 logging.exception('INSERT TIMERESOLVE:')
@@ -167,10 +202,10 @@ class AccessDB:
     def UpdateNS(self, ns, message = None):
         with Session(self.engine) as conn:
             try:
-                check = (select(Servers)
+                check = (select(Servers.status, Servers.message)
                          .filter(Servers.server == ns)
                          .filter(Servers.node == self.node))
-                check = conn.execute(check).fetchall()
+                check = conn.execute(check).fetchone()
                 if check:
                     if not message:
                         stmt = (update(Servers).values(
@@ -180,6 +215,8 @@ class AccessDB:
                             ).filter(Servers.server == ns)
                             .filter(Servers.node == self.node)
                         )
+                        if check[0] == 0:
+                            AccessDB.InsertLogs(self, 'INFO', 'nameserver', f"{ns} is OK.")
                     else:
                         stmt = (update(Servers).values(
                             status = 0,
@@ -187,10 +224,15 @@ class AccessDB:
                             ).filter(Servers.server == ns)
                             .filter(Servers.node == self.node)
                         )
+                        if check[0] == 1 and check[1] != message:
+                            AccessDB.InsertLogs(self, 'ERROR', 'nameserver', f"{ns} is BAD: {message}.")
+                       
                 else:
                     if not message:
                         status = 1
-                    else: status = 0
+                    else: 
+                        status = 0
+                        AccessDB.InsertLogs(self, 'ERROR', 'nameserver', f"{ns} is BAD: {message}.")
                     stmt = insert(Servers).values(
                         ts= getnow(self.timedelta),
                         node = self.node,
@@ -207,10 +249,10 @@ class AccessDB:
     def UpdateDomains(self, domain, error:dns.rcode, auth = None, result = None, message = None):
         with Session(self.engine) as conn:
             try:
-                check = (select(Domains)
+                check = (select(Domains.status, Domains.result)
                          .filter(Domains.domain == domain)
                          .filter(Domains.node == self.node))
-                check = conn.execute(check).fetchall()
+                check = conn.execute(check).fetchone()
                 if check:
                     if error == dns.rcode.NOERROR:
                         stmt = (update(Domains).values(
@@ -222,6 +264,8 @@ class AccessDB:
                             ).filter(Domains.domain == domain)
                             .filter(Domains.node == self.node)
                         )
+                        if check[0] == 0:
+                            AccessDB.InsertLogs(self, 'INFO', 'domain', f"{domain} is OK.")
                     else:
                         stmt = (update(Domains).values(
                             status = 0,
@@ -231,10 +275,13 @@ class AccessDB:
                             ).filter(Domains.domain == domain)
                             .filter(Domains.node == self.node)
                         )
+                        if check[0] == 1 and check[1] != dns.rcode.to_text(error):
+                            AccessDB.InsertLogs(self, 'ERROR', 'domain', f"{domain} is bad: {dns.rcode.to_text(error)}.")
                 else:
                     if error != dns.rcode.NOERROR:
                         status = 0
                         result = dns.rcode.to_text(error)
+                        AccessDB.InsertLogs(self, 'ERROR', 'domain', f"{domain} is bad: {result}.")
                     else: status = 1
                     stmt = insert(Domains).values(
                         ts= getnow(self.timedelta),
@@ -254,10 +301,10 @@ class AccessDB:
     def UpdateZones(self, zone, status, serial:int = None, message = None):
         with Session(self.engine) as conn:
             try:
-                check = (select(Zones)
+                check = (select(Zones.status, Zones.message)
                          .filter(Zones.zone == zone)
                          .filter(Zones.node == self.node))
-                check = conn.execute(check).fetchall()
+                check = conn.execute(check).fetchone()
                 if check:
                     if status == 1:
                         stmt = (update(Zones).values(
@@ -268,6 +315,8 @@ class AccessDB:
                             ).filter(Zones.zone == zone)
                             .filter(Zones.node == self.node)
                         )
+                        if check[0] == 0:
+                            AccessDB.InsertLogs(self, 'INFO', 'zone', f"{zone} is OK.")
                     else:
                         stmt = (update(Zones).values(
                             status = 0,
@@ -276,8 +325,13 @@ class AccessDB:
                             ).filter(Zones.zone == zone)
                             .filter(Zones.node == self.node)
                         )
+                        if check[0] != 0 and check[1] != message:
+                            AccessDB.InsertLogs(self, 'ERROR', 'zone', f"{zone} is bad: {message}.")
                 else:
-                    if status == 1: status = serial
+                    if status == 1: 
+                        status = serial
+                    else:
+                        AccessDB.InsertLogs(self, 'ERROR', 'zone', f"{zone} is bad: {message}.")
                     stmt = insert(Zones).values(
                         ts= getnow(self.timedelta),
                         node = self.node,
@@ -374,6 +428,7 @@ class AccessDB:
                 return data
             except:
                 logging.exception('Get GEO from DB')
+
     def RemoveGeo(self):
         with Session(self.engine) as conn:
             try:

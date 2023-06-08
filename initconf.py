@@ -21,7 +21,8 @@ _OPTIONS =[
     'token',
     'count',
     'sleep',
-    'keep'
+    'keep',
+    'storage'
 ]
 
 def getconf(path):
@@ -48,6 +49,7 @@ def filter(config):
     config['count'] = int(config['count'])
     config['sleep'] = float(config['count'])
     config['keep'] = int(config['keep'])
+    config['storage'] = int(config['storage'])
     return config
 
 
@@ -79,7 +81,8 @@ def deafultconf():
         "dbpass": DBPass,
         "dbhost": DBHost,
         "dbport": 5432,
-        "dbname": DBName
+        "dbname": DBName,
+        "storage": 2592000
     }
     config['GEO'] = {
         "token": '',
