@@ -29,16 +29,19 @@ class NScheck(Thread):
         rtime = []
         self.serials = {}
         self.empty = True
+        self.state = False
         for group in self.zones:
             if group != self.group: continue
             for zone in make_fqdn(self.zones[group]):
                 self.serials[zone] = {}
+                #time.sleep(0.1)
                 try:
                     qname = dns.name.from_text(zone)
                     query = dns.message.make_query(qname, dns.rdatatype.SOA)
                     for i in range(5):
                         try:
                             self.answer = dns.query.udp(query, self.ns, self.conf['timeout'])
+                            self.state = True
                             break
                         except dns.exception.Timeout as e:
                             if i >=2: raise e
@@ -58,8 +61,16 @@ class NScheck(Thread):
                 except Exception as e:
                     self.serials[zone]['status'] = str(e)
                     self.empty = False
-                    self.data.append(f"{zone}: {str(e)}")
+                    #self.data.append(f"{zone}: {str(e)}")
                     continue
+        if self.state is False:
+            self.data.append(f"Server is unvailable")
+
+        # Продолжение костыля. УБРАТЬ!
+        if rtime: Nameservers.Kostil(self, self.ns, rtime)
+
+        if self.debug == (2 or 3):
+            print(self.nsname, self.ns, self.empty, self.data)
 
         # Продолжение костыля. УБРАТЬ!
         if rtime: Nameservers.Kostil(self, self.ns, rtime)
