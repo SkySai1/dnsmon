@@ -38,7 +38,7 @@ class NScheck(Thread):
                 try:
                     qname = dns.name.from_text(zone)
                     query = dns.message.make_query(qname, dns.rdatatype.SOA)
-                    for i in range(5):
+                    for i in range(3):
                         try:
                             self.answer = dns.query.udp(query, self.ns, self.conf['timeout'])
                             self.state = True
