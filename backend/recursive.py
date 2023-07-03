@@ -1,5 +1,3 @@
-#!./mon/bin/python
-
 import ipaddress
 import random
 import socket

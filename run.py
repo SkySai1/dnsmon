@@ -1,4 +1,4 @@
-#!./mon/bin/python3
+#!/etc/dev/dnschecker/mon/bin/python3
 import json
 import os
 import sys
