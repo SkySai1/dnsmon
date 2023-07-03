@@ -1,3 +1,4 @@
+from multiprocessing import Pipe
 import random
 import dns.message
 import dns.rdatatype
@@ -9,30 +10,33 @@ from threading import Thread
 
 class NameResolve(Thread):
 
-    def __init__(self, conf, qname, debug, rtype:dns.rdatatype = dns.rdatatype.A):
+    def __init__(self, name, _CONF, qname, debug, rtype:dns.rdatatype = dns.rdatatype.A):
         Thread.__init__(self)
         self.value = None
-        self.conf = conf
+        self.timeout = float(_CONF['RECURSION']['timeout'])
+        self.maxdepth = int(_CONF['RECURSION']['maxdepth'])
+        self.retry = int(_CONF['RECURSION']['retry'])
         self.qname = qname
         self.debug = debug
         self.rtype = rtype
+        self.name = name
  
     def run(self):
         query = dns.message.make_query(self.qname, self.rtype)
-        R = Recursive(timeout=self.conf['short-timeout'])
+        R = Recursive(timeout=self.timeout, depth=self.maxdepth, retry=self.retry)
         for i in range(3):
             self.value = R.recursive(query)
             if self.value[0].answer: 
                 break
-        if self.debug == (1 or 3):
-            print(self.value[0].question[0].name, self.value[0].rcode(), self.value[1], self.value[2], self.value[0].time)
+        if self.debug in [1,3]:
+            print(self.name, self.value[0].question[0].name, self.value[0].rcode(), self.value[1], self.value[2], self.value[0].time)
 
 
 class Domains:
     def __init__(self, _CONF) -> None:
         pass
 
-    def parse(self, data:dns.message.Message, auth, db:AccessDB):
+    def parse(self, data:dns.message.Message, auth):
         try:
             domain = data.question[0].name.to_text()
             rdata = None
@@ -42,12 +46,12 @@ class Domains:
                     #if rr.rdtype == dns.rdatatype.A:
                     rdata = ', '.join(str(v) for v in rr)
             else: error = dns.rcode.NXDOMAIN
-            db.UpdateDomains(domain, error, auth, rdata)         
+            return domain, error, auth, rdata    
         except:
             logging.exception('DOMAIN PARSE:')
             pass
     
-    def sync(self, d_list, db:AccessDB):
+    def sync(self, d_list, db:AccessDB, child:Pipe=None):
         try:
             dlist_from_db = db.GetDomain()
             for d in dlist_from_db:
@@ -58,8 +62,7 @@ class Domains:
 
 class Zones:
     def __init__(self, conf):
-        self.timedelta = conf['timedelta']
-        self.node = conf['node']
+        pass
 
     def parse(self, data, db:AccessDB):
         zones = {}
@@ -103,7 +106,7 @@ class Zones:
                  )
         db.InsertTimeresolve(stats, False)
 
-    def sync(self, zones, db:AccessDB):
+    def sync(self, zones, db:AccessDB, child:Pipe=None):
         try:
             zlist_from_db = db.GetZone()
             for group in zones:

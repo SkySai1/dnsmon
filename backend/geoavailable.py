@@ -1,5 +1,6 @@
 
 import logging
+from multiprocessing import Pipe
 import random
 from threading import Thread
 from types import NoneType
@@ -82,7 +83,7 @@ class Available:
                 })
         return geobase
     
-    def start(self, domains):
+    def start(self, domains, child:Pipe=None):
         logging.info("Starting geocheck")
         stream = []
         db = AccessDB(self.conf)

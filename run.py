@@ -9,34 +9,39 @@ import dns.message
 import dns.rdatatype
 import dns.rdataclass
 import dns.rcode
-from multiprocessing import Process
+from multiprocessing import Process, Pipe
 from initconf import getconf
 from backend.namservers import Nameservers, NScheck
 from backend.accessdb import Base, enginer, AccessDB
 from backend.names import Domains, NameResolve, Zones, make_fqdn
 from backend.geoavailable import Available
 from threading import Thread
+import random
 
 # Modification of classic Threading
 
 # --Make the magic begin
-def launch_domain_check(domains_list, ns_list, _CONF, _DEBUG=None):
+def launch_domain_check(domains_list, ns_list, _CONF, child:Pipe):
     logging.info("Started domains check")
     # -- Make resolve in another thread for each domain --
+    storage = {}
     stream = []
     for d in domains_list:
+        name = random.randint(1, int(_CONF['GENERAL']['maxthreads']))
         try:
             domain = dns.name.from_text(d)
-            t = NameResolve(_CONF, domain, _DEBUG)
+            t = NameResolve(name, _CONF, domain, _DEBUG)
             t.start()
             stream.append(t)
-        except: pass
+        except Exception: 
+            logging.exception('NAME RESOLVING')
+            pass
 
     # -- Collect data from each thread and do things --
     ns_stats = {}
     D = Domains(_CONF)
     NS = Nameservers(_CONF)
-    db = AccessDB(_CONF)
+    storage['DOMAINS'] = []
     for t in stream:
         t.join()
         data, ip, rt = t.value
@@ -45,16 +50,24 @@ def launch_domain_check(domains_list, ns_list, _CONF, _DEBUG=None):
             ns = ns_list[ip][0]
         else: 
             auth = ns = None
-        D.parse(data, auth, db) # <- preparing resolved data to load into DB
+        result = D.parse(data, auth)
+        storage['DOMAINS'].append({ # <- preparing resolved data to load into DB
+                'domain': result[0],
+                'error': result[1],
+                'auth': result[2],
+                'rdata': result[3]
+            }) 
         if data.rcode() == dns.rcode.NOERROR and ns:
             if not ns in ns_stats: ns_stats[ns] = []
             ns_stats[ns].append(data.time)
-    if ns_stats: NS.resolvetime(ns_stats, db)
+    if ns_stats: 
+        storage['SHORTRESOLVE'] = NS.resolvetime(ns_stats)
+    child.send(storage)
     logging.info("Ended domains check")
     #for ns in ns_stats: print(ns)
 
 # --NameServer checking
-def launch_ns_and_zones_check(nslist, zones, _CONF, _DEBUG=None):
+def launch_ns_and_zones_check(nslist, zones, _CONF, _DEBUG=None, child:Pipe=None):
     logging.info("Started NS and zones check")
     stream = []
     db = AccessDB(_CONF)
@@ -79,7 +92,7 @@ def launch_ns_and_zones_check(nslist, zones, _CONF, _DEBUG=None):
     logging.info("Ended NS and zones check")
 
 # --Zones Trace Resolve
-def launch_zones_resolve(zones, _CONF, _DEBUG = None):
+def launch_zones_resolve(zones, _CONF, _DEBUG = None, child:Pipe=None):
     logging.info("Started zone resolving")
     # -- Make resolve in another thread for each zone --
     stream = []
@@ -115,6 +128,8 @@ def get_list(path):
 # Мультипроцессинг:
 def Parallel(data):
     proc = []
+    data = []
+    parent, child = Pipe()
     for pos in data:
         for fn in pos:
             if type(pos[fn]) is dict:
@@ -128,13 +143,34 @@ def Parallel(data):
     for p in proc:
         p.join()
 
+def PipeParallel(data):
+    proc = []
+    storage = {}
+    for pos in data:
+        for fn in pos:
+            parent, child = Pipe()
+            if type(pos[fn]) is dict:
+                pos[fn]['child'] = child
+                p = Process(target=fn, kwargs=pos[fn])
+                p.start()
+                proc.append(p)
+            else:
+                pos[fn].append(child)
+                p = Process(target=fn, args=pos[fn])
+                p.start()
+                proc.append(p)
+            storage[fn.__name__] = parent.recv()
+    return storage
+
 def handler(event=None, context=None):
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
     # -- Get options from config file --
     logging.info("dnschecker is run!")
     try:
         _CONF = getconf('./config.conf')
-        _DEBUG = _CONF['debug']
+        global _DEBUG
+        _DEBUG = int(_CONF['GENERAL']['debug'])
     except IndexError:
         print('Specify path to config file')
         sys.exit()
@@ -150,9 +186,9 @@ def handler(event=None, context=None):
 
     # -- Try to get list of DNS objects to checking it --
     try:
-        domains_list = make_fqdn(get_list(_CONF['domains']))
-        ns_list = get_list(_CONF['nameservers'])
-        zones = get_list(_CONF['zones'])
+        domains_list = make_fqdn(get_list(_CONF['FILES']['domains']))
+        ns_list = get_list(_CONF['FILES']['nameservers'])
+        zones = get_list(_CONF['FILES']['zones'])
     except: 
         logging.exception('GET DATA FROM CONF')
         sys.exit()
@@ -162,22 +198,21 @@ def handler(event=None, context=None):
     domain_service = Domains(_CONF)
     zone_service = Zones(_CONF)
     ns_service = Nameservers(_CONF)
-    domainDB = AccessDB(_CONF)
-    zoneDB = AccessDB(_CONF)
-    nsDB = AccessDB(_CONF)
-    geoDB = AccessDB(_CONF)
-    geo = Available(_CONF, geoDB)
+    #geo = Available(_CONF, geoDB)
     processes = [
-        {launch_domain_check: [domains_list, ns_list, _CONF]},
-        {launch_ns_and_zones_check: [ns_list, zones, _CONF]},
-        {launch_zones_resolve: [zones, _CONF]},
-        {domain_service.sync: [domains_list, domainDB]},
-        {zone_service.sync: [zones, zoneDB]},
-        {ns_service.sync: [ns_list, nsDB]},
-        {geo.start: [domains_list]}
+        {launch_domain_check: [domains_list, ns_list, _CONF]}
+        #{launch_ns_and_zones_check: [ns_list, zones, _CONF]},
+        #{launch_zones_resolve: [zones, _CONF]},
+        #{domain_service.sync: [domains_list, domainDB]},
+        #{zone_service.sync: [zones, zoneDB]},
+        #{ns_service.sync: [ns_list, nsDB]},
+        #{geo.start: [domains_list]}
     ]
     try:
-        Parallel(processes)
+        STORAGE = PipeParallel(processes)
+        #print(STORAGE)
+        DB = AccessDB(_CONF, STORAGE)
+        DB.parse()
     except KeyboardInterrupt:
         pass
 

@@ -1,3 +1,4 @@
+from multiprocessing import Pipe
 from statistics import mean
 from backend.accessdb import AccessDB, getnow, enginer
 from backend.names import make_fqdn
@@ -54,10 +55,6 @@ class NScheck(Thread):
                         self.serials[zone]['serial'] = int(serial)
 
                     self.serials[zone]['status'] = self.answer.rcode()
-                    # Внизу костыль, УБРАТЬ!
-                    if self.ns in ['185.247.195.1', '185.247.195.2']: 
-                        rtime.append(self.answer.time)
-                    # Конец костыля
                 except Exception as e:
                     self.serials[zone]['status'] = str(e)
                     self.empty = False
@@ -81,24 +78,10 @@ class NScheck(Thread):
 
 class Nameservers:
     def __init__(self, _CONF):
-        self.conf = _CONF
-        self.timedelta = _CONF['timedelta']
-        self.node = _CONF['node']
+        self.timedelta = int(_CONF['DATABASE']['timedelta'])
+        self.node = _CONF['DATABASE']['node']
     
-    # Да-да и это всё тот же костыль!
-    def Kostil(self, ns, time):
-        stats = [{
-            "node": self.conf['node'],
-            "ts": getnow(self.conf['timedelta']),
-            "server": ns,
-            "rtime": mean(time)
-        }]
-        db = AccessDB(self.conf)
-        db.InsertTimeresolve(stats)
-    # Конец костыля
-
-
-    def resolvetime(self, data, db:AccessDB):
+    def resolvetime(self, data):
         stats = []
         for ns in data:
             stats.append(
@@ -109,12 +92,12 @@ class Nameservers:
                     "rtime": mean(data[ns]),
                  }
                  )
-        db.InsertTimeresolve(stats)
+        return stats
     
     def parse(self, ns, data, db:AccessDB):
         db.UpdateNS(ns, data)
 
-    def sync(self, nslist, db:AccessDB):
+    def sync(self, nslist, db:AccessDB, child:Pipe=None):
         try:
             nslist_from_db = db.GetNS()
             nsnames = []

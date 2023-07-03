@@ -10,9 +10,16 @@ from sqlalchemy import ForeignKey, engine, Integer, Column, Float, Text, DateTim
 from sqlalchemy.dialects.postgresql import UUID
 
 def enginer(_CONF):
+    dbuser = _CONF['DATABASE']['dbuser']
+    dbpass = _CONF['DATABASE']['dbpass']
+    dbhost = _CONF['DATABASE']['dbhost']
+    dbport = _CONF['DATABASE']['dbport']
+    dbname = _CONF['DATABASE']['dbname']
     try:  
         engine = create_engine(
-            f"postgresql+psycopg2://{_CONF['dbuser']}:{_CONF['dbpass']}@{_CONF['dbhost']}:{_CONF['dbport']}/{_CONF['dbname']}",
+            "postgresql+psycopg2://%s:%s@%s:%s/%s" % (
+                dbuser, dbpass, dbhost, dbport, dbname
+            ),
             connect_args={'connect_timeout': 5},
             pool_pre_ping=True
         )
@@ -50,16 +57,16 @@ class Zones(Base):
     serial = Column(Integer)
     message = Column(Text)
 
-class ZonesResolve(Base):  
-    __tablename__ = "zoneresolve" 
+class FullResolve(Base):  
+    __tablename__ = "fullresolve" 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
     ts = Column(DateTime(timezone=True), nullable=False)
     zone = Column(String(255), nullable=False)  
     rtime = Column(Float)
 
-class NSresolve(Base):  
-    __tablename__ = "nsresolve" 
+class ShortResolve(Base):  
+    __tablename__ = "shortresolve" 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
     ts = Column(DateTime(timezone=True), nullable=False)
@@ -103,11 +110,19 @@ class Logs(Base):
 
 
 class AccessDB:
-    def __init__(self, _CONF):
+    def __init__(self, _CONF, storage = None):
         self.engine = enginer(_CONF)
+        self.storage = storage
         self.conf = _CONF
-        self.timedelta = _CONF['timedelta']
-        self.node = _CONF['node']
+        self.expire = int(_CONF['DATABASE']['storage'])
+        self.timedelta = int(_CONF['DATABASE']['timedelta'])
+        self.node = _CONF['DATABASE']['node']
+
+    def parse(self):
+        with Session(self.engine) as self.conn:
+            AccessDB.UpdateDomains(self, self.storage['launch_domain_check']['DOMAINS'])
+            if 'SHORTRESOLVE' in self.storage['launch_domain_check']:
+                AccessDB.InsertTimeresolve(self, self.storage['launch_domain_check']['SHORTRESOLVE'], True)
 
     def InsertLogs(self, level, object, message):
         with Session(self.engine) as conn:
@@ -121,7 +136,7 @@ class AccessDB:
                 ))
                 conn.execute(stmt)
                 stmt = (delete(Logs)
-                        .filter(Logs.ts <= getnow(self.timedelta, -self.conf['storage']))
+                        .filter(Logs.ts <= getnow(self.timedelta, -self.expire))
                         .filter(Logs.node == self.node)
                 )
                 conn.execute(stmt)
@@ -184,20 +199,19 @@ class AccessDB:
             except:
                 logging.exception('CREATING NEW NODE:')
 
-    def InsertTimeresolve(self, data, isns:bool = True):
-        if isns is True: Object = NSresolve
-        else: Object = ZonesResolve
-        with Session(self.engine) as conn:
-            try:
-                conn.execute(insert(Object), data)
-                stmt = (delete(Object)
-                        .filter(Object.ts <= getnow(self.timedelta, -self.conf['storage']))
-                        .filter(Object.node == self.node)
-                )
-                conn.execute(stmt)
-                conn.commit()
-            except:
-                logging.exception('INSERT TIMERESOLVE:')
+    def InsertTimeresolve(self, data, is_short:bool = True):
+        if is_short is True: Object = ShortResolve
+        else: Object = FullResolve
+        try:
+            self.conn.execute(insert(Object), data)
+            stmt = (delete(Object)
+                    .filter(Object.ts <= getnow(self.timedelta, -self.expire))
+                    .filter(Object.node == self.node)
+            )
+            self.conn.execute(stmt)
+            self.conn.commit()
+        except:
+            logging.exception('INSERT TIMERESOLVE:')
 
     def UpdateNS(self, ns, message = None):
         with Session(self.engine) as conn:
@@ -246,57 +260,58 @@ class AccessDB:
             except:
                 logging.exception('UPDATE NAMESERVERS TABLE:')
 
-    def UpdateDomains(self, domain, error:dns.rcode, auth = None, result = None, message = None):
-        with Session(self.engine) as conn:
-            try:
+    def UpdateDomains(self, dstorage):
+        try:
+            for data in dstorage:
                 check = (select(Domains.status, Domains.result)
-                         .filter(Domains.domain == domain)
-                         .filter(Domains.node == self.node))
-                check = conn.execute(check).fetchone()
+                            .filter(Domains.domain == data['domain'])
+                            .filter(Domains.node == self.node))
+                check = self.conn.execute(check).fetchone()
                 if check:
-                    if error == dns.rcode.NOERROR:
+                    if data['error'] == dns.rcode.NOERROR:
                         stmt = (update(Domains).values(
                             ts = getnow(self.timedelta),
                             status = 1,
-                            auth = auth,
-                            result = result,
-                            message = message
-                            ).filter(Domains.domain == domain)
+                            auth = data['auth'],
+                            result = data['rdata'],
+                            message = dns.rcode.to_text(data['error'])
+                            ).filter(Domains.domain == data['domain'])
                             .filter(Domains.node == self.node)
                         )
-                        if check[0] == 0:
-                            AccessDB.InsertLogs(self, 'INFO', 'domain', f"{domain} is OK.")
+                        if check[0] != 1:
+                            AccessDB.InsertLogs(self, 'INFO', 'domain', f"{data['domain']} is OK.")
                     else:
                         stmt = (update(Domains).values(
                             status = 0,
-                            auth = auth,
-                            result = dns.rcode.to_text(error),
-                            message = message
-                            ).filter(Domains.domain == domain)
+                            auth = data['auth'],
+                            result = dns.rcode.to_text(data['error']),
+                            message = dns.rcode.to_text(data['error'])
+                            ).filter(Domains.domain == data['domain'])
                             .filter(Domains.node == self.node)
                         )
-                        if check[0] == 1 and check[1] != dns.rcode.to_text(error):
-                            AccessDB.InsertLogs(self, 'ERROR', 'domain', f"{domain} is bad: {dns.rcode.to_text(error)}.")
+                        if check[0] == 1 and check[1] != dns.rcode.to_text(data['error']):
+                            AccessDB.InsertLogs(self, 'ERROR', 'domain', f"{data['domain']} is bad: {dns.rcode.to_text(data['error'])}.")
                 else:
-                    if error != dns.rcode.NOERROR:
+                    if data['error'] is dns.rcode.NOERROR:
+                        status = 1
+                        result = data['rdata']
+                    else: 
                         status = 0
-                        result = dns.rcode.to_text(error)
-                        AccessDB.InsertLogs(self, 'ERROR', 'domain', f"{domain} is bad: {result}.")
-                    else: status = 1
+                        result = data['error']
+                        AccessDB.InsertLogs(self, 'ERROR', 'domain', f"{data['domain']} is bad: {dns.rcode.to_text(data['error'])}.")
                     stmt = insert(Domains).values(
                         ts= getnow(self.timedelta),
                         node = self.node,
-                        domain = domain,
-                        auth = auth,
+                        domain = data['domain'],
+                        auth = data['auth'],
                         status = status,
                         result = result,
-                        message = message
+                        message = dns.rcode.to_text(data['error']),
                         )
-                conn.execute(stmt)
-                conn.commit()
-                conn.close()
-            except:
-                logging.exception('UPDATE DOMAINS TABLE:')
+                self.conn.execute(stmt)
+            self.conn.commit()
+        except:
+            logging.exception('UPDATE DOMAINS TABLE:')
 
     def UpdateZones(self, zone, status, serial:int = None, message = None):
         with Session(self.engine) as conn:
@@ -326,12 +341,12 @@ class AccessDB:
                             .filter(Zones.node == self.node)
                         )
                         if check[0] != 0 and check[1] != message:
-                            AccessDB.InsertLogs(self, 'ERROR', 'zone', f"{zone} is bad: {message}.")
+                            AccessDB.InsertLogs(self, 'WARNING', 'zone', f"{zone} is bad: {message}.")
                 else:
                     if status == 1: 
                         status = serial
                     else:
-                        AccessDB.InsertLogs(self, 'ERROR', 'zone', f"{zone} is bad: {message}.")
+                        AccessDB.InsertLogs(self, 'WARNING', 'zone', f"{zone} is bad: {message}.")
                     stmt = insert(Zones).values(
                         ts= getnow(self.timedelta),
                         node = self.node,
