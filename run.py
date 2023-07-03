@@ -1,6 +1,7 @@
 #!/etc/dev/dnschecker/mon/bin/python3
 import json
 import os
+import re
 import sys
 import logging
 import time
@@ -168,7 +169,8 @@ def handler(event=None, context=None):
     # -- Get options from config file --
     logging.info("dnschecker is run!")
     try:
-        _CONF = getconf('./config.conf')
+        thisdir = os.path.dirname(os.path.abspath(__file__))
+        _CONF = getconf(thisdir+'/config.conf')
         global _DEBUG
         _DEBUG = int(_CONF['GENERAL']['debug'])
     except IndexError:
@@ -186,9 +188,12 @@ def handler(event=None, context=None):
 
     # -- Try to get list of DNS objects to checking it --
     try:
-        domains_list = make_fqdn(get_list(_CONF['FILES']['domains']))
-        ns_list = get_list(_CONF['FILES']['nameservers'])
-        zones = get_list(_CONF['FILES']['zones'])
+        dpath = re.sub(r'^\.',thisdir,_CONF['FILES']['domains'])
+        nspath = re.sub(r'^\.',thisdir,_CONF['FILES']['nameservers'])
+        zonepath = re.sub(r'^\.',thisdir,_CONF['FILES']['zones'])
+        domains_list = make_fqdn(get_list(dpath))
+        ns_list = get_list(nspath)
+        zones = get_list(zonepath)
     except: 
         logging.exception('GET DATA FROM CONF')
         sys.exit()
