@@ -131,27 +131,24 @@ class AccessDB:
                     AccessDB.UpdateNS(self, self.storage['launch_ns_and_zones_check']['NS'])
                 if 'ZONES' in self.storage['launch_ns_and_zones_check']:
                     AccessDB.UpdateZones(self, self.storage['launch_ns_and_zones_check']['ZONES'])
-
+        
     def InsertLogs(self, level, object, message):
-        with Session(self.engine) as conn:
-            try:
-                stmt = (insert(Logs).values(
-                    node = self.node,
-                    ts = getnow(self.timedelta, 0),
-                    level = level,
-                    object = object,
-                    message = message
-                ))
-                conn.execute(stmt)
-                stmt = (delete(Logs)
-                        .filter(Logs.ts <= getnow(self.timedelta, -self.expire))
-                        .filter(Logs.node == self.node)
-                )
-                conn.execute(stmt)
-                conn.commit()
-
-            except:
-                logging.exception('INSERT LOGS:')
+        try:
+            stmt = (insert(Logs).values(
+                node = self.node,
+                ts = getnow(self.timedelta, 0),
+                level = level,
+                object = object,
+                message = message
+            ))
+            self.conn.execute(stmt)
+            stmt = (delete(Logs)
+                    .filter(Logs.ts <= getnow(self.timedelta, -self.expire))
+                    .filter(Logs.node == self.node)
+            )
+            self.conn.execute(stmt)
+        except:
+            logging.exception('INSERT LOGS:')
     
     def InsertGeobase(self, ip, lat, long, city, country):
         with Session(self.engine) as conn:
