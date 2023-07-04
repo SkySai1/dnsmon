@@ -68,28 +68,34 @@ def launch_domain_check(domains_list, ns_list, _CONF, child:Pipe):
     #for ns in ns_stats: print(ns)
 
 # --NameServer checking
-def launch_ns_and_zones_check(nslist, zones, _CONF, _DEBUG=None, child:Pipe=None):
+def launch_ns_and_zones_check(nslist, zones, _CONF, child:Pipe=None):
     logging.info("Started NS and zones check")
     stream = []
-    db = AccessDB(_CONF)
+    storage = {}
     NS = Nameservers(_CONF)
     Z = Zones(_CONF)
     for ns in nslist:
+        name = random.randint(1, int(_CONF['GENERAL']['maxthreads']))
         group = nslist[ns][1]
-        name = nslist[ns][0]
-        t = NScheck(_CONF, ns, group, zones, _DEBUG, name)
+        nsname = nslist[ns][0]
+        t = NScheck(name, _CONF, ns, group, zones, _DEBUG, nsname)
         t.start()
         stream.append(t)
-
     stats = {}
+    storage['NS'] = []
     for t in stream:
         t.join()
         ns = t.ns
         if ns in nslist: ns = nslist[ns][0]
         if t.empty is False:
-            NS.parse(ns, t.data, db)
+            storage['NS'].append({
+                'ns': ns,
+                'message':t.data
+            })
+            #NS.parse(ns, t.data, db)
             stats[ns] = t.serials
-    Z.parse(stats, db)
+    storage['ZONES'] = Z.parse(stats)
+    child.send(storage)
     logging.info("Ended NS and zones check")
 
 # --Zones Trace Resolve
@@ -205,8 +211,8 @@ def handler(event=None, context=None):
     ns_service = Nameservers(_CONF)
     #geo = Available(_CONF, geoDB)
     processes = [
-        {launch_domain_check: [domains_list, ns_list, _CONF]}
-        #{launch_ns_and_zones_check: [ns_list, zones, _CONF]},
+        {launch_domain_check: [domains_list, ns_list, _CONF]},
+        {launch_ns_and_zones_check: [ns_list, zones, _CONF]}
         #{launch_zones_resolve: [zones, _CONF]},
         #{domain_service.sync: [domains_list, domainDB]},
         #{zone_service.sync: [zones, zoneDB]},
@@ -215,7 +221,7 @@ def handler(event=None, context=None):
     ]
     try:
         STORAGE = PipeParallel(processes)
-        #print(STORAGE)
+        #print(STORAGE['launch_ns_and_zones_check']['ZONES'][13])
         DB = AccessDB(_CONF, STORAGE)
         DB.parse()
     except KeyboardInterrupt:

@@ -6,7 +6,7 @@ import uuid
 import logging
 _OPTIONS ={
     'GENERAL': ['debug', 'maxthreads'],
-    'RESOLVE': ['timeout'],
+    'RESOLVE': ['timeout', 'retry'],
     'RECURSION': ['timeout', 'maxdepth', 'retry'],
     'FILES': ['zones', 'domains', 'nameservers', 'publicns'],
     'DATABASE': ['node', 'dbuser', 'dbpass', 'dbhost', 'dbport', 'dbname', 'storage', 'timedelta'],
@@ -26,25 +26,6 @@ def getconf(path):
     except:
         logging.exception('READ CONFIG FILE')
 
-def filter(config):
-    try:
-        config['debug'] = int(config['debug'])
-        config['timeout'] = float(config['timeout'])
-        config['zones'] = os.path.abspath(config['zones'])
-        config['domains'] = os.path.abspath(config['domains'])
-        config['nameservers'] = os.path.abspath(config['nameservers'])
-        config['publicns'] = os.path.abspath(config['publicns'])
-        config['timedelta'] = int(config['timedelta'])
-        config['refresh'] = float(config['refresh'])
-        config['token'] = str(config['token'])
-        config['count'] = int(config['count'])
-        config['sleep'] = float(config['count'])
-        config['keep'] = int(config['keep'])
-        config['storage'] = int(config['storage'])
-    except:
-        logging.exception('CONFIG PARSER')
-
-
 def createconf(where, what:configparser.ConfigParser):
     with open(where, 'w+') as f:
         what.write(f)
@@ -60,7 +41,8 @@ def deafultconf():
         'maxthreads': 10,
     }
     config['RESOLVE'] = {
-        'timeout': 3
+        'timeout': 3,
+        'retry': 3
     }
     config['RECURSION'] = {
         "timeout": 0.05,

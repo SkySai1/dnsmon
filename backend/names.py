@@ -64,8 +64,9 @@ class Zones:
     def __init__(self, conf):
         pass
 
-    def parse(self, data, db:AccessDB):
+    def parse(self, data):
         zones = {}
+        storage = []
         for ns in data:
             #print(ns)
             for zn in data[ns]:
@@ -91,7 +92,17 @@ class Zones:
                     status = 0
                     message.append(f"{ns}: bad serial - {zones[zone][ns]['serial']} (the right is {serial})")
             message = " & ".join(message)
-            db.UpdateZones(zone, status, serial, message)            
+            try:
+                zone = zone.lower().encode().decode('idna')
+            except: zone = zone
+            storage.append({
+                'zone':zone,
+                'status': status,
+                'serial': serial,
+                'message': message
+            })
+            #db.UpdateZones(zone, status, serial, message)
+        return storage            
 
     def resolvetime(self, data, db:AccessDB):
         stats = []

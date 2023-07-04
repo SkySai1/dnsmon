@@ -120,9 +120,17 @@ class AccessDB:
 
     def parse(self):
         with Session(self.engine) as self.conn:
-            AccessDB.UpdateDomains(self, self.storage['launch_domain_check']['DOMAINS'])
-            if 'SHORTRESOLVE' in self.storage['launch_domain_check']:
-                AccessDB.InsertTimeresolve(self, self.storage['launch_domain_check']['SHORTRESOLVE'], True)
+            if 'launch_domain_check' in self.storage:
+                if 'DOMAINS' in self.storage['launch_domain_check']:
+                    AccessDB.UpdateDomains(self, self.storage['launch_domain_check']['DOMAINS'])
+                if 'SHORTRESOLVE' in self.storage['launch_domain_check']:
+                    AccessDB.InsertTimeresolve(self, self.storage['launch_domain_check']['SHORTRESOLVE'], True)
+            
+            if 'launch_ns_and_zones_check' in self.storage:
+                if 'NS' in self.storage['launch_ns_and_zones_check']:
+                    AccessDB.UpdateNS(self, self.storage['launch_ns_and_zones_check']['NS'])
+                if 'ZONES' in self.storage['launch_ns_and_zones_check']:
+                    AccessDB.UpdateZones(self, self.storage['launch_ns_and_zones_check']['ZONES'])
 
     def InsertLogs(self, level, object, message):
         with Session(self.engine) as conn:
@@ -213,13 +221,15 @@ class AccessDB:
         except:
             logging.exception('INSERT TIMERESOLVE:')
 
-    def UpdateNS(self, ns, message = None):
-        with Session(self.engine) as conn:
-            try:
+    def UpdateNS(self, nsstorage):
+        try:
+            for data in nsstorage:
+                ns = data['ns']
+                message = data['message']    
                 check = (select(Servers.status, Servers.message)
                          .filter(Servers.server == ns)
                          .filter(Servers.node == self.node))
-                check = conn.execute(check).fetchone()
+                check = self.conn.execute(check).fetchone()
                 if check:
                     if not message:
                         stmt = (update(Servers).values(
@@ -254,11 +264,10 @@ class AccessDB:
                         server = ns,
                         message = message
                         )
-                conn.execute(stmt)
-                conn.commit()
-                conn.close()
-            except:
-                logging.exception('UPDATE NAMESERVERS TABLE:')
+                self.conn.execute(stmt)
+            self.conn.commit()
+        except:
+            logging.exception('UPDATE NAMESERVERS TABLE:')
 
     def UpdateDomains(self, dstorage):
         try:
@@ -313,13 +322,17 @@ class AccessDB:
         except:
             logging.exception('UPDATE DOMAINS TABLE:')
 
-    def UpdateZones(self, zone, status, serial:int = None, message = None):
-        with Session(self.engine) as conn:
-            try:
+    def UpdateZones(self, znstorage):
+        try:
+            for data in znstorage:
+                zone = data['zone']
+                status = data['status']
+                serial = data['serial']
+                message = data['message']
                 check = (select(Zones.status, Zones.message)
                          .filter(Zones.zone == zone)
                          .filter(Zones.node == self.node))
-                check = conn.execute(check).fetchone()
+                check = self.conn.execute(check).fetchone()
                 if check:
                     if status == 1:
                         stmt = (update(Zones).values(
@@ -355,11 +368,10 @@ class AccessDB:
                         serial = serial,
                         message = message
                         )
-                conn.execute(stmt)
-                conn.commit()
-                conn.close()
-            except:
-                logging.exception('UPDATE ZONES TABLE:')
+                self.conn.execute(stmt)
+            self.conn.commit()
+        except:
+            logging.exception('UPDATE ZONES TABLE:')
 
     def GetDomain(self, domain=None):
         with Session(self.engine) as conn:

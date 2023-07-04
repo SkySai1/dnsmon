@@ -15,12 +15,14 @@ import logging
 
 class NScheck(Thread):
 
-    def __init__(self, _CONF, ns, group, zones, debug, name = None):
+    def __init__(self, name, _CONF, ns, group, zones, debug, nsname = None):
         Thread.__init__(self)
-        self.conf = _CONF
+        self.name = name
+        self.retry = int(_CONF['RESOLVE']['retry'])
+        self.timeout = float(_CONF['RESOLVE']['timeout'])
         self.value = None
         self.ns = ns
-        self.nsname = name
+        self.nsname = nsname
         self.group = group
         self.zones = zones
         self.debug = debug
@@ -39,13 +41,12 @@ class NScheck(Thread):
                 try:
                     qname = dns.name.from_text(zone)
                     query = dns.message.make_query(qname, dns.rdatatype.SOA)
-                    for i in range(5):
+                    for i in range(self.retry):
                         try:
-                            self.answer = dns.query.udp(query, self.ns, self.conf['timeout'])
+                            self.answer = dns.query.udp(query, self.ns, self.timeout)
                             self.state = True
                             break
-                        except dns.exception.Timeout as e:
-                            if i >=2: raise e
+                        except: pass
                     if self.answer.rcode() is not dns.rcode.NOERROR:
                         error = dns.rcode.to_text(self.answer.rcode())
                         self.data.append(f"{zone}: {error}")
@@ -61,16 +62,7 @@ class NScheck(Thread):
                     #self.data.append(f"{zone}: {str(e)}")
                     continue
         if self.state is False:
-            self.data.append(f"Server is unvailable")
-
-        # Продолжение костыля. УБРАТЬ!
-        if rtime: Nameservers.Kostil(self, self.ns, rtime)
-
-        if self.debug == (2 or 3):
-            print(self.nsname, self.ns, self.empty, self.data)
-
-        # Продолжение костыля. УБРАТЬ!
-        if rtime: Nameservers.Kostil(self, self.ns, rtime)
+            self.data.append(f"this ns ({self.ns}) is unvailable")
 
         if self.debug == (2 or 3):
             print(self.nsname, self.ns, self.empty, self.data)
