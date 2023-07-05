@@ -16,7 +16,7 @@ from backend.namservers import Nameservers, NScheck
 from backend.accessdb import Base, enginer, AccessDB
 from backend.names import Domains, NameResolve, Zones, make_fqdn
 from backend.geoavailable import Available
-from threading import Thread
+from threading import BoundedSemaphore
 import random
 
 # Modification of classic Threading
@@ -28,10 +28,9 @@ def launch_domain_check(domains_list, ns_list, _CONF, child:Pipe):
     storage = {}
     stream = []
     for d in domains_list:
-        name = random.randint(1, int(_CONF['GENERAL']['maxthreads']))
         try:
             domain = dns.name.from_text(d)
-            t = NameResolve(name, _CONF, domain, _DEBUG)
+            t = NameResolve(_MAXTHREADS, _CONF, domain, _DEBUG)
             t.start()
             stream.append(t)
         except Exception: 
@@ -72,13 +71,12 @@ def launch_ns_and_zones_check(nslist, zones, _CONF, child:Pipe=None):
     logging.info("Started NS and zones check")
     stream = []
     storage = {}
-    NS = Nameservers(_CONF)
     Z = Zones(_CONF)
     for ns in nslist:
         name = random.randint(1, int(_CONF['GENERAL']['maxthreads']))
         group = nslist[ns][1]
         nsname = nslist[ns][0]
-        t = NScheck(name, _CONF, ns, group, zones, _DEBUG, nsname)
+        t = NScheck(_MAXTHREADS, _CONF, ns, group, zones, _DEBUG, nsname)
         t.start()
         stream.append(t)
     stats = {}
@@ -99,15 +97,17 @@ def launch_ns_and_zones_check(nslist, zones, _CONF, child:Pipe=None):
     logging.info("Ended NS and zones check")
 
 # --Zones Trace Resolve
-def launch_zones_resolve(zones, _CONF, _DEBUG = None, child:Pipe=None):
+def launch_zones_resolve(zones, _CONF, child:Pipe):
     logging.info("Started zone resolving")
     # -- Make resolve in another thread for each zone --
     stream = []
+    storage = {}
+    storage['FULLRESOLVE'] = []
     for group in zones:
         for zone in zones[group]:
             try:
                 zone = dns.name.from_text(zone)
-                t = NameResolve(_CONF, zone, _DEBUG, dns.rdatatype.SOA)
+                t = NameResolve(_MAXTHREADS, _CONF, zone, _DEBUG, dns.rdatatype.SOA)
                 t.start()
                 stream.append(t)
             except: pass
@@ -115,16 +115,19 @@ def launch_zones_resolve(zones, _CONF, _DEBUG = None, child:Pipe=None):
     # -- Collect data from each thread and do things --
     ns_stats = {}
     Z = Zones(_CONF)
-    db = AccessDB(_CONF)
     zn_stats = {}
     for t in stream:
         t.join()
         data, _, rt = t.value
         zn = data.question[0].name.to_text()
+        try: zn = zn.lower().encode().decode('idna')
+        except: pass
         if not zn in ns_stats: zn_stats[zn] = []
         if data.rcode() is not dns.rcode.NOERROR: rt = 0
         zn_stats[zn] = rt
-    if zn_stats: Z.resolvetime(zn_stats, db)
+    if zn_stats: 
+        storage['FULLRESOLVE'] = Z.resolvetime(zn_stats)
+    child.send(storage)
     logging.info("Ended zone resolving")
 
 def get_list(path):
@@ -133,41 +136,30 @@ def get_list(path):
         return list
 
 # Мультипроцессинг:
-def Parallel(data):
-    proc = []
-    data = []
-    parent, child = Pipe()
-    for pos in data:
-        for fn in pos:
-            if type(pos[fn]) is dict:
-                p = Process(target=fn, kwargs=pos[fn])
-                p.start()
-                proc.append(p)
-            else:
-                p = Process(target=fn, args=pos[fn])
-                p.start()
-                proc.append(p)
-    for p in proc:
-        p.join()
-
 def PipeParallel(data):
-    proc = []
-    storage = {}
-    for pos in data:
-        for fn in pos:
-            parent, child = Pipe()
-            if type(pos[fn]) is dict:
-                pos[fn]['child'] = child
-                p = Process(target=fn, kwargs=pos[fn])
-                p.start()
-                proc.append(p)
-            else:
-                pos[fn].append(child)
-                p = Process(target=fn, args=pos[fn])
-                p.start()
-                proc.append(p)
-            storage[fn.__name__] = parent.recv()
-    return storage
+    try:
+        proc = []
+        storage = {}
+        channel = []
+        for pos in data:
+            for fn in pos:
+                parent, child = Pipe()
+                if type(pos[fn]) is dict:
+                    pos[fn]['child'] = child
+                    p = Process(target=fn, kwargs=pos[fn])
+                    p.start()
+                    proc.append(p)
+                else:
+                    pos[fn].append(child)
+                    p = Process(target=fn, args=pos[fn])
+                    p.start()
+                    proc.append(p)
+                channel.append((fn, parent))
+        for p in channel:
+            storage[p[0].__name__] = p[1].recv()
+        return storage
+    except Exception:
+        logging.exception('PROCCESSING')
 
 def handler(event=None, context=None):
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -179,17 +171,10 @@ def handler(event=None, context=None):
         _CONF = getconf(thisdir+'/config.conf')
         global _DEBUG
         _DEBUG = int(_CONF['GENERAL']['debug'])
+        global _MAXTHREADS
+        _MAXTHREADS = BoundedSemaphore(int(_CONF['GENERAL']['maxthreads']))
     except IndexError:
         print('Specify path to config file')
-        sys.exit()
-
-    # -- Try to create tables if it doesnt --
-    try: 
-        Base.metadata.create_all(enginer(_CONF))
-        init = AccessDB(_CONF)
-        init.NewNode()
-    except: 
-        logging.exception('DB INIT:')
         sys.exit()
 
     # -- Try to get list of DNS objects to checking it --
@@ -199,29 +184,34 @@ def handler(event=None, context=None):
         zonepath = re.sub(r'^\.',thisdir,_CONF['FILES']['zones'])
         domains_list = make_fqdn(get_list(dpath))
         ns_list = get_list(nspath)
-        zones = get_list(zonepath)
+        zones_list = get_list(zonepath)
     except: 
         logging.exception('GET DATA FROM CONF')
         sys.exit()
+
+    # -- Try to create tables if it doesnt --
+    try: 
+        Base.metadata.create_all(enginer(_CONF))
+        init = AccessDB(_CONF)
+        init.start(domains_list, zones_list, ns_list)
+    except: 
+        logging.exception('DB INIT:')
+        sys.exit()
+
+
     
 
 
-    domain_service = Domains(_CONF)
-    zone_service = Zones(_CONF)
-    ns_service = Nameservers(_CONF)
     #geo = Available(_CONF, geoDB)
     processes = [
         {launch_domain_check: [domains_list, ns_list, _CONF]},
-        {launch_ns_and_zones_check: [ns_list, zones, _CONF]}
-        #{launch_zones_resolve: [zones, _CONF]},
-        #{domain_service.sync: [domains_list, domainDB]},
-        #{zone_service.sync: [zones, zoneDB]},
-        #{ns_service.sync: [ns_list, nsDB]},
+        {launch_ns_and_zones_check: [ns_list, zones_list, _CONF]},
+        {launch_zones_resolve: [zones_list, _CONF]},
         #{geo.start: [domains_list]}
     ]
     try:
         STORAGE = PipeParallel(processes)
-        #print(STORAGE['launch_ns_and_zones_check']['ZONES'][13])
+        #print(STORAGE['launch_zones_resolve'])
         DB = AccessDB(_CONF, STORAGE)
         DB.parse()
     except KeyboardInterrupt:

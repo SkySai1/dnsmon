@@ -118,6 +118,54 @@ class AccessDB:
         self.timedelta = int(_CONF['DATABASE']['timedelta'])
         self.node = _CONF['DATABASE']['node']
 
+
+    def start(self, dlist, zlist, nslist):
+        with Session(self.engine) as self.conn:
+            # -- Creating new node if it doesnt
+            try:
+                check = self.conn.execute(select(Nodes.node).filter(Nodes.node == self.node)).fetchone()
+                if not check:
+                    self.conn.execute(
+                        insert(Nodes).values(node = self.node)
+                    )
+            except:
+                logging.exception('CREATING NEW NODE:')
+
+            # -- Synchronizing domains
+            try:
+                dlist_from_db = AccessDB.GetDomain(self)
+                for d in dlist_from_db:
+                    if not d[0] in dlist:
+                        AccessDB.RemoveDomain(self, d[0])
+            except:
+                logging.exception('DOMAINS SYNC:')
+
+            # -- Synchronizing zones
+            try:
+                zlist_from_db = AccessDB.GetZone(self)
+                for group in zlist:
+                    for z in zlist_from_db:
+                        if not z[0] in make_fqdn(zlist[group]):
+                            AccessDB.RemoveZone(self, z[0])
+            except Exception:
+                logging.exception('ZONES SYNC:')
+
+            # -- Synchronizing NS
+            try:
+                nslist_from_db = AccessDB.GetNS(self)
+                nsnames = []
+                for addr in nslist:
+                    nsnames.append(nslist[addr][0])
+
+                for ns in nslist_from_db:
+                    if not ns[0] in nsnames:
+                        AccessDB.RemoveNS(self, ns[0])
+            except Exception:
+                logging.exception('NS SYNC:')
+            
+            self.conn.commit()
+
+
     def parse(self):
         with Session(self.engine) as self.conn:
             if 'launch_domain_check' in self.storage:
@@ -131,7 +179,11 @@ class AccessDB:
                     AccessDB.UpdateNS(self, self.storage['launch_ns_and_zones_check']['NS'])
                 if 'ZONES' in self.storage['launch_ns_and_zones_check']:
                     AccessDB.UpdateZones(self, self.storage['launch_ns_and_zones_check']['ZONES'])
-        
+            
+            if 'launch_zones_resolve' in self.storage:
+                if 'FULLRESOLVE' in self.storage['launch_zones_resolve']:
+                    AccessDB.InsertTimeresolve(self, self.storage['launch_zones_resolve']['FULLRESOLVE'], False)
+    
     def InsertLogs(self, level, object, message):
         try:
             stmt = (insert(Logs).values(
@@ -191,18 +243,6 @@ class AccessDB:
                 conn.commit()
             except:
                 logging.exception('INSERT GEO STATE:')
-
-    def NewNode(self):
-        with Session(self.engine) as conn:
-            try:
-                check = conn.execute(select(Nodes.node).filter(Nodes.node == self.node)).fetchone()
-                if not check:
-                    conn.execute(
-                        insert(Nodes).values(node = self.node)
-                    )
-                    conn.commit()
-            except:
-                logging.exception('CREATING NEW NODE:')
 
     def InsertTimeresolve(self, data, is_short:bool = True):
         if is_short is True: Object = ShortResolve
@@ -371,79 +411,70 @@ class AccessDB:
             logging.exception('UPDATE ZONES TABLE:')
 
     def GetDomain(self, domain=None):
-        with Session(self.engine) as conn:
-            try:
-                if domain:
-                    stmt = (select(Domains.domain)
-                            .filter(Domains.domain == domain)
-                            .filter(Domains.node == self.node))
-                else:
-                    stmt = select(Domains.domain)
-                result = conn.execute(stmt).fetchall()
-                return result
-            except:
-                logging.exception('GET DOMAINS FROM DB:')
-        
-    def RemoveDomain(self, domain):
-        with Session(self.engine) as conn:
-            try:
-                stmt = (delete(Domains)
+        try:
+            if domain:
+                stmt = (select(Domains.domain)
                         .filter(Domains.domain == domain)
                         .filter(Domains.node == self.node))
-                conn.execute(stmt)
-                conn.commit()
-            except:
-                logging.exception('REMOVE DOMAIN FROM DB:')
+            else:
+                stmt = select(Domains.domain)
+            result = self.conn.execute(stmt).fetchall()
+            return result
+        except:
+            logging.exception('GET DOMAINS FROM DB:')
+        
+    def RemoveDomain(self, domain):
+        try:
+            stmt = (delete(Domains)
+                    .filter(Domains.domain == domain)
+                    .filter(Domains.node == self.node))
+            self.conn.execute(stmt)
+        except:
+            logging.exception('REMOVE DOMAIN FROM DB:')
 
     def GetZone(self, zone=None):
-        with Session(self.engine) as conn:
-            try:
-                if zone:
-                    stmt = (select(Zones.zone)
-                            .filter(Zones.zone == zone)
-                            .filter(Zones.node == self.node))
-                else:
-                    stmt = select(Zones.zone)
-                result = conn.execute(stmt).fetchall()
-                return result
-            except:
-                logging.exception('GET ZONE FROM DB:')
-        
-    def RemoveZone(self, zone):
-        with Session(self.engine) as conn:
-            try:
-                stmt = (delete(Zones)
+        try:
+            if zone:
+                stmt = (select(Zones.zone)
                         .filter(Zones.zone == zone)
                         .filter(Zones.node == self.node))
-                conn.execute(stmt)
-                conn.commit()
-            except:
-                logging.exception('REMOVE ZONE FROM DB:')
+            else:
+                stmt = select(Zones.zone)
+            result = self.conn.execute(stmt).fetchall()
+            return result
+        except:
+            logging.exception('GET ZONE FROM DB:')
+        
+    def RemoveZone(self, zone):
+        try:
+            stmt = (delete(Zones)
+                    .filter(Zones.zone == zone)
+                    .filter(Zones.node == self.node))
+            self.conn.execute(stmt)
+        except:
+            logging.exception('REMOVE ZONE FROM DB:')
 
     def GetNS(self, server=None):
-        with Session(self.engine) as conn:
-            try:
-                if server:
-                    stmt = (select(Servers.server)
-                            .filter(Servers.server == server)
-                            .filter(Servers.node == self.node))
-                else:
-                    stmt = select(Servers.server)
-                result = conn.execute(stmt).fetchall()
-                return result
-            except:
-                logging.exception('GET server FROM DB:')
-        
-    def RemoveNS(self, server):
-        with Session(self.engine) as conn:
-            try:
-                stmt = (delete(Servers)
+        try:
+            if server:
+                stmt = (select(Servers.server)
                         .filter(Servers.server == server)
                         .filter(Servers.node == self.node))
-                conn.execute(stmt)
-                conn.commit()
-            except:
-                logging.exception('REMOVE server FROM DB:')
+            else:
+                stmt = select(Servers.server)
+            result = self.conn.execute(stmt).fetchall()
+            return result
+        except:
+            logging.exception('GET server FROM DB:')
+        
+    def RemoveNS(self, server):
+        try:
+            stmt = (delete(Servers)
+                    .filter(Servers.server == server)
+                    .filter(Servers.node == self.node))
+            self.conn.execute(stmt)
+        except:
+            logging.exception('REMOVE server FROM DB:')
     
     def GetGeo(self):
         with Session(self.engine) as conn:
@@ -470,3 +501,11 @@ def getnow(delta, rise = 0):
     tz = datetime.timezone(offset)
     now = datetime.datetime.now(tz=tz)
     return now + datetime.timedelta(0,rise) 
+
+def make_fqdn(data):
+    new_list = []
+    for d in data:
+        if '.' != d[-1]:
+            d += '.'
+        new_list.append(d)
+    return new_list

@@ -1,8 +1,7 @@
 from multiprocessing import Pipe
 from statistics import mean
-from backend.accessdb import AccessDB, getnow, enginer
-from backend.names import make_fqdn
-from threading import Thread
+from backend.accessdb import getnow, make_fqdn
+from threading import Thread, BoundedSemaphore
 import dns.message
 import dns.name
 import dns.rdatatype
@@ -15,9 +14,9 @@ import logging
 
 class NScheck(Thread):
 
-    def __init__(self, name, _CONF, ns, group, zones, debug, nsname = None):
+    def __init__(self, limit:BoundedSemaphore, _CONF, ns, group, zones, debug, nsname = None):
         Thread.__init__(self)
-        self.name = name
+        self.limit = limit
         self.retry = int(_CONF['RESOLVE']['retry'])
         self.timeout = float(_CONF['RESOLVE']['timeout'])
         self.value = None
@@ -28,6 +27,7 @@ class NScheck(Thread):
         self.debug = debug
  
     def run(self):
+        self.limit.acquire()
         self.data = []
         rtime = []
         self.serials = {}
@@ -66,6 +66,7 @@ class NScheck(Thread):
 
         if self.debug == (2 or 3):
             print(self.nsname, self.ns, self.empty, self.data)
+        self.limit.release()
 
 
 class Nameservers:
@@ -85,19 +86,3 @@ class Nameservers:
                  }
                  )
         return stats
-    
-    def parse(self, ns, data, db:AccessDB):
-        db.UpdateNS(ns, data)
-
-    def sync(self, nslist, db:AccessDB, child:Pipe=None):
-        try:
-            nslist_from_db = db.GetNS()
-            nsnames = []
-            for addr in nslist:
-                nsnames.append(nslist[addr][0])
-
-            for ns in nslist_from_db:
-                if not ns[0] in nsnames:
-                    db.RemoveNS(ns[0])
-        except Exception as e:
-            print(e)

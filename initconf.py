@@ -41,11 +41,11 @@ def deafultconf():
         'maxthreads': 10,
     }
     config['RESOLVE'] = {
-        'timeout': 3,
+        'timeout': 0.3,
         'retry': 3
     }
     config['RECURSION'] = {
-        "timeout": 0.05,
+        "timeout": 0.1,
         "maxdepth": 30,
         "retry": 3
     }

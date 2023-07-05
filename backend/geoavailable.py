@@ -2,7 +2,7 @@
 import logging
 from multiprocessing import Pipe
 import random
-from threading import Thread
+from threading import Thread, BoundedSemaphore
 from types import NoneType
 import dns.message
 import dns.query
@@ -14,20 +14,18 @@ from backend.accessdb import AccessDB, getnow
 
 class Scanner(Thread):
 
-    def __init__(self, conf, data, domains, db:AccessDB):
+    def __init__(self, name, _CONF, data, domains):
         Thread.__init__(self)
+        self.name = name
         self.state = None
         self.value = None
-        self.conf = conf
         self.data = data
         self.domains = domains
-        self.db = db
+        self.limit = BoundedSemaphore(int(_CONF['GENERAL']['maxthreads']))
         
-
- 
     def run(self):
-        port = 53
         try:
+            self.limit.acquire()
             j=0
             for city in self.data:
                 if j>=2: break
@@ -55,6 +53,8 @@ class Scanner(Thread):
                 j+=1
         except Exception as e:
             self.state = 'closed'
+        finally:
+            self.limit.release()
 
 
 class Available:

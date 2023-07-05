@@ -4,24 +4,25 @@ import dns.message
 import dns.rdatatype
 import dns.rcode
 import logging
-from backend.accessdb import AccessDB, getnow
+from backend.accessdb import getnow, make_fqdn
 from backend.recursive import Recursive
-from threading import Thread
+from threading import Thread, BoundedSemaphore
 
 class NameResolve(Thread):
 
-    def __init__(self, name, _CONF, qname, debug, rtype:dns.rdatatype = dns.rdatatype.A):
+    def __init__(self, limit:BoundedSemaphore, _CONF, qname, debug, rtype:dns.rdatatype = dns.rdatatype.A):
         Thread.__init__(self)
-        self.value = None
+        self.limit = limit
         self.timeout = float(_CONF['RECURSION']['timeout'])
         self.maxdepth = int(_CONF['RECURSION']['maxdepth'])
         self.retry = int(_CONF['RECURSION']['retry'])
         self.qname = qname
         self.debug = debug
         self.rtype = rtype
-        self.name = name
+        self.value = None
  
     def run(self):
+        self.limit.acquire()
         query = dns.message.make_query(self.qname, self.rtype)
         R = Recursive(timeout=self.timeout, depth=self.maxdepth, retry=self.retry)
         for i in range(3):
@@ -30,7 +31,7 @@ class NameResolve(Thread):
                 break
         if self.debug in [1,3]:
             print(self.name, self.value[0].question[0].name, self.value[0].rcode(), self.value[1], self.value[2], self.value[0].time)
-
+        self.limit.release()
 
 class Domains:
     def __init__(self, _CONF) -> None:
@@ -51,18 +52,10 @@ class Domains:
             logging.exception('DOMAIN PARSE:')
             pass
     
-    def sync(self, d_list, db:AccessDB, child:Pipe=None):
-        try:
-            dlist_from_db = db.GetDomain()
-            for d in dlist_from_db:
-                if not d[0] in d_list:
-                    db.RemoveDomain(d[0])
-        except Exception as e:
-            print(e)
-
 class Zones:
-    def __init__(self, conf):
-        pass
+    def __init__(self, _CONF):
+        self.node = _CONF['DATABASE']['node']
+        self.timedelta = float(_CONF['DATABASE']['timedelta'])
 
     def parse(self, data):
         zones = {}
@@ -104,7 +97,7 @@ class Zones:
             #db.UpdateZones(zone, status, serial, message)
         return storage            
 
-    def resolvetime(self, data, db:AccessDB):
+    def resolvetime(self, data):
         stats = []
         for zn in data:
             stats.append(
@@ -115,22 +108,4 @@ class Zones:
                     "rtime": data[zn],
                  }
                  )
-        db.InsertTimeresolve(stats, False)
-
-    def sync(self, zones, db:AccessDB, child:Pipe=None):
-        try:
-            zlist_from_db = db.GetZone()
-            for group in zones:
-                for z in zlist_from_db:
-                    if not z[0] in make_fqdn(zones[group]):
-                        db.RemoveZone(z[0])
-        except Exception as e:
-            print(e)
-
-def make_fqdn(dlist):
-    new_dlist = []
-    for d in dlist:
-        if '.' != d[-1]:
-            d += '.'
-        new_dlist.append(d)
-    return new_dlist
+        return stats
