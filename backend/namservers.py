@@ -62,7 +62,6 @@ class NScheck(Thread):
                     continue
         if self.state is False:
             self.data.append(f"this ns ({self.ns}) is unvailable")
-
         if self.debug == (2 or 3):
             print(self.nsname, self.ns, self.empty, self.data)
         self.limit.release()
