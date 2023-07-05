@@ -11,6 +11,8 @@ from backend.accessdb import AccessDB, Base, enginer
 from initconf import getconf
 from run import get_list
 
+count = 0
+
 class Scrapper:
     def __init__(self, conf, db:AccessDB):
         self.conf = conf
@@ -21,13 +23,14 @@ class Scrapper:
         data = json.loads(response.read())
         return data
 
-    def scrap(self, url):
+    def scrap(self, url, exist):
         data = Scrapper.getnslist(self, url)
         random.shuffle(data)
         i = 0
         for one in data:
             if i >= self.conf['count']: break
             ip = one['ip']
+            if ip in exist: continue
             try:
                 location, ip = Scrapper.geocheck(self, ip)
                 country = location["country"]
@@ -36,6 +39,9 @@ class Scrapper:
                 if coordinates and re.match('^[0-9]+.[0-9]+.[0-9]+.[0-9]+$', ip):
                     self.db.InsertGeobase(ip, coordinates[0], coordinates[1], city, country)
                     i+=1
+                    global count
+                    count += 1
+                    print(count, location["country"], location["city"], ip)
             except Exception as e:
                 pass
 
@@ -74,7 +80,11 @@ if __name__ == "__main__":
         sys.exit()
         
     db = AccessDB(_CONF)
+    base =db.GetGeo()
+    exist = []
+    for obj in base:
+        for row in obj:
+            exist.append(row.ip)
     S = Scrapper(_CONF, db)
     for url in urllist:
         print(url)
-        #S.scrap(url)
