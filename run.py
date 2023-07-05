@@ -168,7 +168,7 @@ def handler(event=None, context=None):
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
     # -- Get options from config file --
-    logging.info("DNSCHECKER IS RUNED!!!")
+    logging.info("DNSCHECKER IS RAN!!!")
     try:
         thisdir = os.path.dirname(os.path.abspath(__file__))
         _CONF = getconf(thisdir+'/config.conf')
