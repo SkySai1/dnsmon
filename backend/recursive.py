@@ -1,5 +1,3 @@
-#!./mon/bin/python
-
 import ipaddress
 import random
 import socket
@@ -73,7 +71,7 @@ class Recursive:
             except: # <-In any troubles at process resolving returns request with SERVFAIL code
                 #logging.exception(f'Stage: Recursive: {query.question}')
                 result = dns.message.make_response(query)
-                result.set_rcode(2)
+                result.set_rcode(4)
                 auth = None
             finally:
                 end = time.time()
@@ -100,11 +98,16 @@ class Recursive:
                     break
                 except dns.exception.Timeout as e:
                     pass
+                except:
+                    result = dns.message.make_response(query)
+                    result.set_rcode(4)
+                    return result, ns
             if query.id != result.id:
                 raise Exception('ID mismatch!')
             if not result: raise Exception
             if _DEBUG in [2,3]: print(result,'\n\n')  # <- SOME DEBUG
         except Exception:
+            #logging.exception('RESOLVE')
             result = dns.message.make_response(query)
             result.set_rcode(2)
             return result, ns

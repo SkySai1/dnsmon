@@ -9,7 +9,7 @@ import requests
 import re
 from backend.accessdb import AccessDB, Base, enginer
 from initconf import getconf
-from start_mon import get_list
+from run import get_list
 
 count = 0
 
@@ -87,5 +87,4 @@ if __name__ == "__main__":
             exist.append(row.ip)
     S = Scrapper(_CONF, db)
     for url in urllist:
-        S.scrap(url, exist)
-        pass
+        print(url)

@@ -1,7 +1,7 @@
+from multiprocessing import Pipe
 from statistics import mean
-from backend.accessdb import AccessDB, getnow, enginer
-from backend.names import make_fqdn
-from threading import Thread
+from backend.accessdb import getnow, make_fqdn
+from threading import Thread, BoundedSemaphore
 import dns.message
 import dns.name
 import dns.rdatatype
@@ -14,12 +14,14 @@ import logging
 
 class NScheck(Thread):
 
-    def __init__(self, _CONF, ns, group, zones, debug, name = None):
+    def __init__(self, limit:BoundedSemaphore, _CONF, ns, group, zones, debug, nsname = None):
         Thread.__init__(self)
-        self.conf = _CONF
+        self.limit = limit
+        self.retry = int(_CONF['RESOLVE']['retry'])
+        self.timeout = float(_CONF['RESOLVE']['timeout'])
         self.value = None
         self.ns = ns
-        self.nsname = name
+        self.nsname = nsname
         self.group = group
         self.zones = zones
         self.debug = debug
@@ -38,13 +40,12 @@ class NScheck(Thread):
                 try:
                     qname = dns.name.from_text(zone)
                     query = dns.message.make_query(qname, dns.rdatatype.SOA)
-                    for i in range(3):
+                    for i in range(self.retry):
                         try:
-                            self.answer = dns.query.udp(query, self.ns, self.conf['timeout'])
+                            self.answer = dns.query.udp(query, self.ns, self.timeout)
                             self.state = True
                             break
-                        except dns.exception.Timeout as e:
-                            if i >=2: raise e
+                        except: pass
                     if self.answer.rcode() is not dns.rcode.NOERROR:
                         error = dns.rcode.to_text(self.answer.rcode())
                         self.data.append(f"{zone}: {error}")
@@ -54,45 +55,24 @@ class NScheck(Thread):
                         self.serials[zone]['serial'] = int(serial)
 
                     self.serials[zone]['status'] = self.answer.rcode()
-                    # Внизу костыль, УБРАТЬ!
-                    if self.ns in ['185.247.195.1', '185.247.195.2']: 
-                        rtime.append(self.answer.time)
-                    # Конец костыля
                 except Exception as e:
                     self.serials[zone]['status'] = str(e)
                     self.empty = False
                     #self.data.append(f"{zone}: {str(e)}")
                     continue
         if self.state is False:
-            self.data.append(f"Server is unvailable")
-
-        # Продолжение костыля. УБРАТЬ!
-        if rtime: Nameservers.Kostil(self, self.ns, rtime)
-
+            self.data.append(f"this ns ({self.ns}) is unvailable")
         if self.debug == (2 or 3):
             print(self.nsname, self.ns, self.empty, self.data)
+        self.limit.release()
 
 
 class Nameservers:
     def __init__(self, _CONF):
-        self.conf = _CONF
-        self.timedelta = _CONF['timedelta']
-        self.node = _CONF['node']
+        self.timedelta = int(_CONF['DATABASE']['timedelta'])
+        self.node = _CONF['DATABASE']['node']
     
-    # Да-да и это всё тот же костыль!
-    def Kostil(self, ns, time):
-        stats = [{
-            "node": self.conf['node'],
-            "ts": getnow(self.conf['timedelta']),
-            "server": ns,
-            "rtime": mean(time)
-        }]
-        db = AccessDB(self.conf)
-        db.InsertTimeresolve(stats)
-    # Конец костыля
-
-
-    def resolvetime(self, data, db:AccessDB):
+    def resolvetime(self, data):
         stats = []
         for ns in data:
             stats.append(
@@ -103,20 +83,4 @@ class Nameservers:
                     "rtime": mean(data[ns]),
                  }
                  )
-        db.InsertTimeresolve(stats)
-    
-    def parse(self, ns, data, db:AccessDB):
-        db.UpdateNS(ns, data)
-
-    def sync(self, nslist, db:AccessDB):
-        try:
-            nslist_from_db = db.GetNS()
-            nsnames = []
-            for addr in nslist:
-                nsnames.append(nslist[addr][0])
-
-            for ns in nslist_from_db:
-                if not ns[0] in nsnames:
-                    db.RemoveNS(ns[0])
-        except Exception as e:
-            print(e)
+        return stats
