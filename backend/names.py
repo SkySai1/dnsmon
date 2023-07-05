@@ -22,7 +22,6 @@ class NameResolve(Thread):
         self.value = None
  
     def run(self):
-        self.limit.acquire()
         query = dns.message.make_query(self.qname, self.rtype)
         R = Recursive(timeout=self.timeout, depth=self.maxdepth, retry=self.retry)
         for i in range(3):

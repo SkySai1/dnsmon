@@ -27,7 +27,6 @@ class NScheck(Thread):
         self.debug = debug
  
     def run(self):
-        self.limit.acquire()
         self.data = []
         rtime = []
         self.serials = {}

@@ -30,6 +30,7 @@ def launch_domain_check(domains_list, ns_list, _CONF, child:Pipe):
     for d in domains_list:
         try:
             domain = dns.name.from_text(d)
+            _MAXTHREADS.acquire()
             t = NameResolve(_MAXTHREADS, _CONF, domain, _DEBUG)
             t.start()
             stream.append(t)
@@ -76,6 +77,7 @@ def launch_ns_and_zones_check(nslist, zones, _CONF, child:Pipe=None):
         name = random.randint(1, int(_CONF['GENERAL']['maxthreads']))
         group = nslist[ns][1]
         nsname = nslist[ns][0]
+        _MAXTHREADS.acquire()
         t = NScheck(_MAXTHREADS, _CONF, ns, group, zones, _DEBUG, nsname)
         t.start()
         stream.append(t)
@@ -107,6 +109,7 @@ def launch_zones_resolve(zones, _CONF, child:Pipe):
         for zone in zones[group]:
             try:
                 zone = dns.name.from_text(zone)
+                _MAXTHREADS.acquire()
                 t = NameResolve(_MAXTHREADS, _CONF, zone, _DEBUG, dns.rdatatype.SOA)
                 t.start()
                 stream.append(t)
