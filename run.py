@@ -165,7 +165,7 @@ def handler(event=None, context=None):
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
     # -- Get options from config file --
-    logging.info("dnschecker is run!")
+    logging.info("DNSCHECKER IS RUNED!!!")
     try:
         thisdir = os.path.dirname(os.path.abspath(__file__))
         _CONF = getconf(thisdir+'/config.conf')
@@ -201,9 +201,9 @@ def handler(event=None, context=None):
 
     geo = Available(_CONF, _MAXTHREADS, geobase)
     processes = [
-        #{launch_domain_check: [domains_list, ns_list, _CONF]},
-        #{launch_ns_and_zones_check: [ns_list, zones_list, _CONF]},
-        #{launch_zones_resolve: [zones_list, _CONF]},
+        {launch_domain_check: [domains_list, ns_list, _CONF]},
+        {launch_ns_and_zones_check: [ns_list, zones_list, _CONF]},
+        {launch_zones_resolve: [zones_list, _CONF]},
         {geo.geocheck: [domains_list]}
     ]
     try:
@@ -213,6 +213,8 @@ def handler(event=None, context=None):
         DB.parse()
     except KeyboardInterrupt:
         pass
+    finally:
+        logging.info("DNSCHECKER IS END.")
 
 if __name__ == "__main__":
     handler() # <- for manual start
