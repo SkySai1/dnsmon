@@ -10,13 +10,12 @@ _OPTIONS ={
     'RECURSION': ['timeout', 'maxdepth', 'retry'],
     'FILES': ['zones', 'domains', 'nameservers', 'publicns'],
     'DATABASE': ['node', 'dbuser', 'dbpass', 'dbhost', 'dbport', 'dbname', 'storage', 'timedelta'],
-    'GEO': ['sleep', 'keep']
+    'GEO': ['maxcities', 'maxservers', 'timeout', 'sleep', 'keep']
 }
 
 def getconf(path):
     config = configparser.ConfigParser()
     config.read(path)
-    parsed = {}
     try:
         for section in _OPTIONS:
             if config.has_section(section) is not True: raise Exception(f'bad section - {section}')
@@ -66,6 +65,9 @@ def deafultconf():
         "timedelta": 3,
     }
     config['GEO'] = {
+        "maxcities": 2,
+        "maxservers": 2,
+        "timeout": 1,
         "sleep": 50,
         "keep": 600,
     }

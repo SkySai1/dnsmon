@@ -193,25 +193,22 @@ def handler(event=None, context=None):
     try: 
         Base.metadata.create_all(enginer(_CONF))
         init = AccessDB(_CONF)
-        init.start(domains_list, zones_list, ns_list)
+        geobase = init.start(domains_list, zones_list, ns_list)
     except: 
         logging.exception('DB INIT:')
         sys.exit()
 
 
-    
-
-
-    #geo = Available(_CONF, geoDB)
+    geo = Available(_CONF, _MAXTHREADS, geobase)
     processes = [
-        {launch_domain_check: [domains_list, ns_list, _CONF]},
-        {launch_ns_and_zones_check: [ns_list, zones_list, _CONF]},
-        {launch_zones_resolve: [zones_list, _CONF]},
-        #{geo.start: [domains_list]}
+        #{launch_domain_check: [domains_list, ns_list, _CONF]},
+        #{launch_ns_and_zones_check: [ns_list, zones_list, _CONF]},
+        #{launch_zones_resolve: [zones_list, _CONF]},
+        {geo.geocheck: [domains_list]}
     ]
     try:
         STORAGE = PipeParallel(processes)
-        #print(STORAGE['launch_zones_resolve'])
+        #print(STORAGE['geocheck'])
         DB = AccessDB(_CONF, STORAGE)
         DB.parse()
     except KeyboardInterrupt:

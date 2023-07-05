@@ -97,7 +97,9 @@ class GeoState(Base):
     node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
     ip = Column(String(255), ForeignKey('geobase.ip', ondelete='cascade'), nullable=False)
     ts = Column(DateTime(timezone=True), nullable=False)  
+    domain = Column(String(255), nullable=False)
     state = Column(SmallInteger, nullable=False)
+    result = Column(Text)
 
 class Logs(Base):
     __tablename__ = "logs"
@@ -116,6 +118,7 @@ class AccessDB:
         self.conf = _CONF
         self.expire = int(_CONF['DATABASE']['storage'])
         self.timedelta = int(_CONF['DATABASE']['timedelta'])
+        self.keep = int(_CONF['GEO']['keep'])
         self.node = _CONF['DATABASE']['node']
 
 
@@ -162,8 +165,14 @@ class AccessDB:
                         AccessDB.RemoveNS(self, ns[0])
             except Exception:
                 logging.exception('NS SYNC:')
-            
             self.conn.commit()
+
+            # -- Getting GEO Base
+            try:
+                geobase = AccessDB.GetGeo(self)
+                return geobase
+            except Exception:
+                logging.exception('GET GEO')
 
 
     def parse(self):
@@ -184,6 +193,10 @@ class AccessDB:
                 if 'FULLRESOLVE' in self.storage['launch_zones_resolve']:
                     AccessDB.InsertTimeresolve(self, self.storage['launch_zones_resolve']['FULLRESOLVE'], False)
     
+            if 'geocheck' in self.storage:
+                    AccessDB.InsertGeostate(self, self.storage['geocheck'])
+
+
     def InsertLogs(self, level, object, message):
         try:
             stmt = (insert(Logs).values(
@@ -220,41 +233,26 @@ class AccessDB:
             except Exception as e:
                 logging.exception('INSERT GEO BASE:')
     
-    def InsertGeostate(self, ip, state):
-        with Session(self.engine) as conn:
-            try:
-                check = conn.execute(select(GeoState.ip).filter(GeoState.ip == ip)).first()
-                if check:
-                    stmt = (update(GeoState)
-                            .filter(GeoState.ip == ip)
-                            .values(
-                                ts = getnow(self.timedelta, 0),
-                                state = state
-                            )
-                    )
-                else:
-                    stmt = (insert(GeoState).values(
-                        node = self.node,
-                        ts = getnow(self.timedelta, 0),
-                        ip = ip,
-                        state = state
-                    ))
-                conn.execute(stmt)
-                conn.commit()
-            except:
-                logging.exception('INSERT GEO STATE:')
+    def InsertGeostate(self, data):
+        try:
+            if data:
+                self.conn.execute(insert(GeoState), data)
+                AccessDB.RemoveGeo(self)
+        except:
+            logging.exception('INSERT GEO STATE:')
 
     def InsertTimeresolve(self, data, is_short:bool = True):
         if is_short is True: Object = ShortResolve
         else: Object = FullResolve
         try:
-            self.conn.execute(insert(Object), data)
-            stmt = (delete(Object)
-                    .filter(Object.ts <= getnow(self.timedelta, -self.expire))
-                    .filter(Object.node == self.node)
-            )
-            self.conn.execute(stmt)
-            self.conn.commit()
+            if data:
+                self.conn.execute(insert(Object), data)
+                stmt = (delete(Object)
+                        .filter(Object.ts <= getnow(self.timedelta, -self.expire))
+                        .filter(Object.node == self.node)
+                )
+                self.conn.execute(stmt)
+                self.conn.commit()
         except:
             logging.exception('INSERT TIMERESOLVE:')
 
@@ -477,24 +475,22 @@ class AccessDB:
             logging.exception('REMOVE server FROM DB:')
     
     def GetGeo(self):
-        with Session(self.engine) as conn:
-            try:
-                data = conn.execute(select(GeoBase)).fetchall()
-                return data
-            except:
-                logging.exception('Get GEO from DB')
+        try:
+            data = self.conn.execute(select(GeoBase)).fetchall()
+            return data
+        except:
+            logging.exception('Get GEO from DB')
 
     def RemoveGeo(self):
-        with Session(self.engine) as conn:
-            try:
-                stmt = (delete(GeoState)
-                        .filter(GeoState.ts <= getnow(self.timedelta, -self.conf['keep']))
-                        .returning(GeoState.ip)
-                )
-                result = conn.scalars(stmt).all()
-                conn.commit()
-            except:
-                logging.exception('Remove stats from GeoState')
+        try:
+            stmt = (delete(GeoState)
+                    .filter(GeoState.ts <= getnow(self.timedelta, -self.keep))
+                    .returning(GeoState.ip)
+            )
+            result = self.conn.scalars(stmt).all()
+            self.conn.commit()
+        except:
+            logging.exception('Remove stats from GeoState')
     
 def getnow(delta, rise = 0):
     offset = datetime.timedelta(hours=delta)
