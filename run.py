@@ -208,7 +208,7 @@ def handler(event=None, context=None):
         {launch_domain_check: [domains_list, ns_list, _CONF]},
         {launch_ns_and_zones_check: [ns_list, zones_list, _CONF]},
         {launch_zones_resolve: [zones_list, _CONF]},
-        #{geo.geocheck: [domains_list]}
+        {geo.geocheck: [domains_list]}
     ]
     try:
         STORAGE = PipeParallel(processes)
