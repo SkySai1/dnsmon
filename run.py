@@ -170,8 +170,9 @@ def handler(event=None, context=None):
     # -- Get options from config file --
     logging.info("DNSCHECKER IS RAN!!!")
     try:
+        path = os.path.abspath(sys.argv[1])
         thisdir = os.path.dirname(os.path.abspath(__file__))
-        _CONF = getconf(thisdir+'/config.conf')
+        _CONF = getconf(path)
         global _DEBUG
         _DEBUG = int(_CONF['GENERAL']['debug'])
         global _MAXTHREADS
