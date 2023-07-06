@@ -10,7 +10,7 @@ _OPTIONS ={
     'RECURSION': ['timeout', 'maxdepth', 'retry'],
     'FILES': ['zones', 'domains', 'nameservers', 'publicns'],
     'DATABASE': ['node', 'dbuser', 'dbpass', 'dbhost', 'dbport', 'dbname', 'storage', 'timedelta'],
-    'GEO': ['maxcities', 'maxservers', 'timeout', 'sleep', 'keep']
+    'GEO': ['maxcities', 'maxservers', 'timeout', 'sleep', 'keep', 'initcount']
 }
 
 def getconf(path):
@@ -70,6 +70,7 @@ def deafultconf():
         "timeout": 1,
         "sleep": 50,
         "keep": 600,
+        "initcount": 100,
     }
     return config
 

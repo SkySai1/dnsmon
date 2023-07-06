@@ -122,50 +122,51 @@ class AccessDB:
         self.node = _CONF['DATABASE']['node']
 
 
-    def start(self, dlist, zlist, nslist):
+    def start(self, dlist=None, zlist=None, nslist=None, onlygeo=False):
         with Session(self.engine) as self.conn:
-            # -- Creating new node if it doesnt
-            try:
-                check = self.conn.execute(select(Nodes.node).filter(Nodes.node == self.node)).fetchone()
-                if not check:
-                    self.conn.execute(
-                        insert(Nodes).values(node = self.node)
-                    )
-            except:
-                logging.exception('CREATING NEW NODE:')
+            if onlygeo is False:
+                # -- Creating new node if it doesnt
+                try:
+                    check = self.conn.execute(select(Nodes.node).filter(Nodes.node == self.node)).fetchone()
+                    if not check:
+                        self.conn.execute(
+                            insert(Nodes).values(node = self.node)
+                        )
+                except:
+                    logging.exception('CREATING NEW NODE:')
 
-            # -- Synchronizing domains
-            try:
-                dlist_from_db = AccessDB.GetDomain(self)
-                for d in dlist_from_db:
-                    if not d[0] in dlist:
-                        AccessDB.RemoveDomain(self, d[0])
-            except:
-                logging.exception('DOMAINS SYNC:')
+                # -- Synchronizing domains
+                try:
+                    dlist_from_db = AccessDB.GetDomain(self)
+                    for d in dlist_from_db:
+                        if not d[0] in dlist:
+                            AccessDB.RemoveDomain(self, d[0])
+                except:
+                    logging.exception('DOMAINS SYNC:')
 
-            # -- Synchronizing zones
-            try:
-                zlist_from_db = AccessDB.GetZone(self)
-                for group in zlist:
-                    for z in zlist_from_db:
-                        if not z[0] in make_fqdn(zlist[group]):
-                            AccessDB.RemoveZone(self, z[0])
-            except Exception:
-                logging.exception('ZONES SYNC:')
+                # -- Synchronizing zones
+                try:
+                    zlist_from_db = AccessDB.GetZone(self)
+                    for group in zlist:
+                        for z in zlist_from_db:
+                            if not z[0] in make_fqdn(zlist[group]):
+                                AccessDB.RemoveZone(self, z[0])
+                except Exception:
+                    logging.exception('ZONES SYNC:')
 
-            # -- Synchronizing NS
-            try:
-                nslist_from_db = AccessDB.GetNS(self)
-                nsnames = []
-                for addr in nslist:
-                    nsnames.append(nslist[addr][0])
+                # -- Synchronizing NS
+                try:
+                    nslist_from_db = AccessDB.GetNS(self)
+                    nsnames = []
+                    for addr in nslist:
+                        nsnames.append(nslist[addr][0])
 
-                for ns in nslist_from_db:
-                    if not ns[0] in nsnames:
-                        AccessDB.RemoveNS(self, ns[0])
-            except Exception:
-                logging.exception('NS SYNC:')
-            self.conn.commit()
+                    for ns in nslist_from_db:
+                        if not ns[0] in nsnames:
+                            AccessDB.RemoveNS(self, ns[0])
+                except Exception:
+                    logging.exception('NS SYNC:')
+                self.conn.commit()
 
             # -- Getting GEO Base
             try:
@@ -175,7 +176,8 @@ class AccessDB:
                 logging.exception('GET GEO')
 
 
-    def parse(self):
+    def parse(self, storage = None):
+        if storage: self.storage = storage
         with Session(self.engine) as self.conn:
             if 'launch_domain_check' in self.storage:
                 if 'DOMAINS' in self.storage['launch_domain_check']:
@@ -195,6 +197,9 @@ class AccessDB:
     
             if 'geocheck' in self.storage:
                     AccessDB.InsertGeostate(self, self.storage['geocheck'])
+            
+            if 'initgeo' in self.storage:
+                    AccessDB.InsertGeobase(self, self.storage['initgeo'])
 
 
     def InsertLogs(self, level, object, message):
@@ -215,19 +220,10 @@ class AccessDB:
         except:
             logging.exception('INSERT LOGS:')
     
-    def InsertGeobase(self, ip, lat, long, city, country):
-        with Session(self.engine) as conn:
+    def InsertGeobase(self, data):
             try:
-                stmt = (insert(GeoBase).values(
-                    ip = ip,
-                    latitude = lat,
-                    longitude = long,
-                    city = city,
-                    country = country
-                ))
-                conn.execute(stmt)
-                conn.commit()
-
+                self.conn.execute(insert(GeoBase), data)
+                self.conn.commit()
             except sqlalchemy.exc.IntegrityError:
                 pass
             except Exception as e:
