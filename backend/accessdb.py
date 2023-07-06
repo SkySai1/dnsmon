@@ -147,10 +147,11 @@ class AccessDB:
                 # -- Synchronizing zones
                 try:
                     zlist_from_db = AccessDB.GetZone(self)
-                    for group in zlist:
-                        for z in zlist_from_db:
-                            if not z[0] in make_fqdn(zlist[group]):
-                                AccessDB.RemoveZone(self, z[0])
+                    zlist = [zone for group in zlist for zone in zlist[group]]
+                    for z in zlist_from_db:
+                        if not z[0] in make_fqdn(zlist):
+                            print(z[0])
+                            AccessDB.RemoveZone(self, z[0])
                 except Exception:
                     logging.exception('ZONES SYNC:')
 
