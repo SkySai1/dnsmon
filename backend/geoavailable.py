@@ -14,10 +14,11 @@ from backend.accessdb import AccessDB, getnow
 
 class Scanner(Thread):
 
-    def __init__(self, limit:BoundedSemaphore, timeout, server, domain):
+    def __init__(self, limit:BoundedSemaphore, timeout, retry, server, domain):
         Thread.__init__(self)
         self.limit = limit
         self.timeout = timeout
+        self.retry = retry
         self.server = server
         self.domain = domain
         
@@ -25,7 +26,7 @@ class Scanner(Thread):
         result = (None, None)
         try:
             qname = dns.name.from_text(self.domain)
-            for i in range(2):
+            for i in range(self.retry):
                 try:
                     query = dns.message.make_query(qname, dns.rdatatype.A)
                     r = dns.query.udp(query, self.server, self.timeout)
@@ -53,6 +54,7 @@ class Available:
     def __init__(self, _CONF, limit:BoundedSemaphore, geobase):
         self.limit = limit
         self.timeout = float(_CONF['GEO']['timeout'])
+        self.retry = int(_CONF['GEO']['retry'])
         self.maxcities = int(_CONF['GEO']['maxcities'])
         self.maxservers = int(_CONF['GEO']['maxservers'])
         self.node = _CONF['DATABASE']['node']
@@ -89,7 +91,7 @@ class Available:
                     if k>=self.maxservers: break
                     domain = random.choice(domains)
                     self.limit.acquire()            
-                    T = Scanner(self.limit, self.timeout, server['ip'], domain)
+                    T = Scanner(self.limit, self.timeout, self.retry, server['ip'], domain)
                     T.start()
                     stream.append((T, server, domain))
                     k += 1

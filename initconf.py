@@ -9,21 +9,23 @@ _OPTIONS ={
     'RESOLVE': ['timeout', 'retry'],
     'RECURSION': ['timeout', 'maxdepth', 'retry'],
     'FILES': ['zones', 'domains', 'nameservers', 'publicns'],
-    'DATABASE': ['node', 'dbuser', 'dbpass', 'dbhost', 'dbport', 'dbname', 'storage', 'timedelta'],
-    'GEO': ['maxcities', 'maxservers', 'timeout', 'sleep', 'keep', 'initcount']
+    'DATABASE': ['node', 'dbuser', 'dbpass', 'dbhost', 'dbport', 'dbname', 'storagetime', 'timedelta'],
+    'GEO': ['maxcities', 'maxservers', 'retry', 'timeout', 'sleep', 'keep', 'initcount']
 }
 
 def getconf(path):
     config = configparser.ConfigParser()
     config.read(path)
+    bad = []
     try:
         for section in _OPTIONS:
-            if config.has_section(section) is not True: raise Exception(f'bad section - {section}')
             for key in _OPTIONS[section]:
-                if config.has_option(section, key) is not True: raise Exception(f'bad key in config file - {key}')
+                if config.has_option(section, key) is not True: bad.append(f'Bad config file: missing key - {key} in {section} section')
+        if bad: raise Exception("\n".join(bad))
         return config
-    except:
-        logging.exception('READ CONFIG FILE')
+    except Exception as e:
+        print(e)
+        sys.exit()
 
 def createconf(where, what:configparser.ConfigParser):
     with open(where, 'w+') as f:
@@ -61,16 +63,17 @@ def deafultconf():
         "dbhost": DBHost,
         "dbport": 5432,
         "dbname": DBName,
-        "storage": 2592000,
+        "storagetime": 2592000,
         "timedelta": 3,
     }
     config['GEO'] = {
         "maxcities": 2,
         "maxservers": 2,
+        'retry': 2,
         "timeout": 1,
         "sleep": 50,
         "keep": 600,
-        "initcount": 100,
+        "initcount": 100
     }
     return config
 

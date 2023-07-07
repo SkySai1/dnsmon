@@ -116,7 +116,7 @@ class AccessDB:
         self.engine = enginer(_CONF)
         self.storage = storage
         self.conf = _CONF
-        self.expire = int(_CONF['DATABASE']['storage'])
+        self.expire = int(_CONF['DATABASE']['storagetime'])
         self.timedelta = int(_CONF['DATABASE']['timedelta'])
         self.keep = int(_CONF['GEO']['keep'])
         self.node = _CONF['DATABASE']['node']
