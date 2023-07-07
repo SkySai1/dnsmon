@@ -8,7 +8,8 @@ _OPTIONS ={
     'GENERAL': ['debug', 'maxthreads'],
     'RESOLVE': ['timeout', 'retry'],
     'RECURSION': ['timeout', 'maxdepth', 'retry'],
-    'FILES': ['zones', 'domains', 'nameservers', 'publicns'],
+    'HEALTHCHECK': ['timeout', 'retry'],
+    'FILES': ['healthcheck', 'zones', 'domains', 'nameservers', 'publicns'],
     'DATABASE': ['node', 'dbuser', 'dbpass', 'dbhost', 'dbport', 'dbname', 'storagetime', 'timedelta'],
     'GEO': ['maxcities', 'maxservers', 'retry', 'timeout', 'sleep', 'keep', 'initcount']
 }
@@ -50,10 +51,15 @@ def deafultconf():
         "maxdepth": 30,
         "retry": 3
     }
+    config['HEALTHCHECK'] = {
+        "timeout": 3,
+        "retry": 2
+    }
     config['FILES'] = {
         "zones": "./jsons/zones.example.json",
         "domains": "./jsons/domains.example.json",
         "nameservers": "./jsons/nslist.example.json",
+        "healthcheck": "./jsons/healthcheck.example.json",
         "publicns": "./jsons/ns_storage.json",
     }
     config['DATABASE'] = {

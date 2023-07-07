@@ -150,7 +150,6 @@ class AccessDB:
                     zlist = [zone for group in zlist for zone in zlist[group]]
                     for z in zlist_from_db:
                         if not z[0] in make_fqdn(zlist):
-                            print(z[0])
                             AccessDB.RemoveZone(self, z[0])
                 except Exception:
                     logging.exception('ZONES SYNC:')
@@ -500,5 +499,5 @@ def make_fqdn(data):
     for d in data:
         if '.' != d[-1]:
             d += '.'
-        new_list.append(d)
+        new_list.append(d.lower().encode().decode('idna'))
     return new_list

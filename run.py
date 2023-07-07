@@ -11,6 +11,7 @@ import dns.rdatatype
 import dns.rdataclass
 import dns.rcode
 from multiprocessing import Process, Pipe
+from backend.healthcheck import HealthCheck
 from initconf import getconf
 from backend.namservers import Nameservers, NScheck
 from backend.accessdb import Base, enginer, AccessDB
@@ -64,7 +65,7 @@ def launch_domain_check(domains_list, ns_list, _CONF, child:Pipe):
     if ns_stats: 
         storage['SHORTRESOLVE'] = NS.resolvetime(ns_stats)
     child.send(storage)
-    logging.info("Ended domains check")
+    logging.info("End domains check")
     #for ns in ns_stats: print(ns)
 
 # --NameServer checking
@@ -96,7 +97,7 @@ def launch_ns_and_zones_check(nslist, zones, _CONF, child:Pipe=None):
             stats[ns] = t.serials
     storage['ZONES'] = Z.parse(stats)
     child.send(storage)
-    logging.info("Ended NS and zones check")
+    logging.info("End NS and zones check")
 
 # --Zones Trace Resolve
 def launch_zones_resolve(zones, _CONF, child:Pipe):
@@ -131,7 +132,21 @@ def launch_zones_resolve(zones, _CONF, child:Pipe):
     if zn_stats: 
         storage['FULLRESOLVE'] = Z.resolvetime(zn_stats)
     child.send(storage)
-    logging.info("Ended zone resolving")
+    logging.info("End zone resolving")
+
+def launch_healthcheck(hc_list, _CONF, child:Pipe()):
+    logging.info("Started healthchecking")
+    result=None
+    stream = []
+    for domain in hc_list:
+        _MAXTHREADS.acquire()
+        T = HealthCheck(_MAXTHREADS, _CONF, domain, hc_list[domain])
+        T.start()
+        stream.append(T)
+    for t in stream:
+        t.join()
+    child.send(result)
+    logging.info("End healthchecking")
 
 def get_list(path):
     with open(path, "r") as f:
@@ -186,9 +201,11 @@ def handler(event=None, context=None):
         dpath = re.sub(r'^\.',thisdir,_CONF['FILES']['domains'])
         nspath = re.sub(r'^\.',thisdir,_CONF['FILES']['nameservers'])
         zonepath = re.sub(r'^\.',thisdir,_CONF['FILES']['zones'])
+        healthpath = re.sub(r'^\.',thisdir,_CONF['FILES']['healthcheck'])
         domains_list = make_fqdn(get_list(dpath))
         ns_list = get_list(nspath)
         zones_list = get_list(zonepath)
+        hc_list = get_list(healthpath)
     except: 
         logging.exception('GET DATA FROM CONF')
         sys.exit()
@@ -205,10 +222,11 @@ def handler(event=None, context=None):
 
     geo = Available(_CONF, _MAXTHREADS, geobase)
     processes = [
-        {launch_domain_check: [domains_list, ns_list, _CONF]},
-        {launch_ns_and_zones_check: [ns_list, zones_list, _CONF]},
-        {launch_zones_resolve: [zones_list, _CONF]},
-        {geo.geocheck: [domains_list]}
+        #{launch_domain_check: [domains_list, ns_list, _CONF]},
+        #{launch_ns_and_zones_check: [ns_list, zones_list, _CONF]},
+        #{launch_zones_resolve: [zones_list, _CONF]},
+        {launch_healthcheck: [hc_list, _CONF]}
+        #{geo.geocheck: [domains_list]}
     ]
     try:
         STORAGE = PipeParallel(processes)
