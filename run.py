@@ -11,7 +11,6 @@ import dns.rdatatype
 import dns.rdataclass
 import dns.rcode
 from multiprocessing import Process, Pipe
-from backend.healthcheck import HealthCheck
 from initconf import getconf
 from backend.namservers import Nameservers, NScheck
 from backend.accessdb import Base, enginer, AccessDB
@@ -134,21 +133,6 @@ def launch_zones_resolve(zones, _CONF, child:Pipe):
     child.send(storage)
     logging.info("End zone resolving")
 
-def launch_healthcheck(hc_list, _CONF, child:Pipe()):
-    logging.info("Started healthchecking")
-    result=[]
-    stream = []
-    for domain in hc_list:
-        _MAXTHREADS.acquire()
-        T = HealthCheck(_MAXTHREADS, _CONF, domain, hc_list[domain])
-        T.start()
-        stream.append(T)
-    for t in stream:
-        t.join()
-        result.append(t.result)
-    child.send(result)
-    logging.info("End healthchecking")
-
 def get_list(path):
     with open(path, "r") as f:
         list = json.loads(f.read())
@@ -180,14 +164,17 @@ def PipeParallel(data):
     except Exception:
         logging.exception('PROCCESSING')
 
-def handler(event=None, context=None):
+def handler(*args, **kwargs):
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-
     # -- Get options from config file --
     logging.info("DNSCHECKER IS RAN!!!")
     try:
-        path = os.path.abspath(sys.argv[1])
         thisdir = os.path.dirname(os.path.abspath(__file__))
+        if 'cpath' in kwargs and kwargs['cpath'] is not None:
+                path=kwargs['cpath']
+        else:
+            path=thisdir+'/config.conf'
+        logging.info('Used config file \'%s\'' % path)
         _CONF = getconf(path)
         global _DEBUG
         _DEBUG = int(_CONF['GENERAL']['debug'])
@@ -202,11 +189,9 @@ def handler(event=None, context=None):
         dpath = re.sub(r'^\.',thisdir,_CONF['FILES']['domains'])
         nspath = re.sub(r'^\.',thisdir,_CONF['FILES']['nameservers'])
         zonepath = re.sub(r'^\.',thisdir,_CONF['FILES']['zones'])
-        healthpath = re.sub(r'^\.',thisdir,_CONF['FILES']['healthcheck'])
         domains_list = make_fqdn(get_list(dpath))
         ns_list = get_list(nspath)
         zones_list = get_list(zonepath)
-        hc_list = get_list(healthpath)
     except: 
         logging.exception('GET DATA FROM CONF')
         sys.exit()
@@ -223,15 +208,13 @@ def handler(event=None, context=None):
 
     geo = Available(_CONF, _MAXTHREADS, geobase)
     processes = [
-        #{launch_domain_check: [domains_list, ns_list, _CONF]},
-        #{launch_ns_and_zones_check: [ns_list, zones_list, _CONF]},
-        #{launch_zones_resolve: [zones_list, _CONF]},
-        {launch_healthcheck: [hc_list, _CONF]}
-        #{geo.geocheck: [domains_list]}
+        {launch_domain_check: [domains_list, ns_list, _CONF]},
+        {launch_ns_and_zones_check: [ns_list, zones_list, _CONF]},
+        {launch_zones_resolve: [zones_list, _CONF]},
+        {geo.geocheck: [domains_list]}
     ]
     try:
         STORAGE = PipeParallel(processes)
-        print(json.dumps(STORAGE, indent=4))
         DB = AccessDB(_CONF, STORAGE)
         DB.parse()
     except KeyboardInterrupt:
@@ -240,4 +223,11 @@ def handler(event=None, context=None):
         logging.info("DNSCHECKER IS END.")
 
 if __name__ == "__main__":
-    handler() # <- for manual start
+    if sys.argv[1:]:
+        path = os.path.abspath(sys.argv[1])
+        if os.path.exists(path):
+            handler(cpath=path) # <- for manual start
+        else:
+            print('Bad config file')
+    else:
+        handler(cpath=None)
