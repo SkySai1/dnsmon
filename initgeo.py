@@ -13,6 +13,8 @@ from backend.geoavailable import Available
 from initconf import getconf
 from run import get_list
 
+count = 0
+
 class Scrapper:
     def __init__(self, _CONF, geobase):
         self.count = int(_CONF['GEO']['initcount'])
@@ -104,4 +106,3 @@ if __name__ == "__main__":
     geostorage['initgeo'] = [data for data in geostorage['initgeo'] for data in data]
     #print(geostorage['initgeo'])
     DB.parse(geostorage)
-    

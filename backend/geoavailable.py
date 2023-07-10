@@ -110,4 +110,3 @@ class Available:
             #print(s[0].result, s[1]['latitude'], s[1]['longitude'])
         child.send(storage)
         logging.info('Finished geocheck')
-    
