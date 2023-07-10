@@ -136,7 +136,7 @@ def launch_zones_resolve(zones, _CONF, child:Pipe):
 
 def launch_healthcheck(hc_list, _CONF, child:Pipe()):
     logging.info("Started healthchecking")
-    result=None
+    result=[]
     stream = []
     for domain in hc_list:
         _MAXTHREADS.acquire()
@@ -145,6 +145,7 @@ def launch_healthcheck(hc_list, _CONF, child:Pipe()):
         stream.append(T)
     for t in stream:
         t.join()
+        result.append(t.result)
     child.send(result)
     logging.info("End healthchecking")
 
@@ -230,7 +231,7 @@ def handler(event=None, context=None):
     ]
     try:
         STORAGE = PipeParallel(processes)
-        #print(STORAGE['geocheck'])
+        print(json.dumps(STORAGE, indent=4))
         DB = AccessDB(_CONF, STORAGE)
         DB.parse()
     except KeyboardInterrupt:

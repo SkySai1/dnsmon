@@ -82,6 +82,16 @@ class Servers(Base):
     status = Column(SmallInteger, nullable=False)
     message = Column(Text)
 
+class Healthcheck(Base):
+    __tablename__ = 'healthcheck'
+    id = Column(BigInteger, primary_key=True)
+    node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
+    ts = Column(DateTime(timezone=True), nullable=False)
+    domain = Column(String(255), nullable=False)
+    address = Column(String(255))
+    status = Column(SmallInteger, nullable=False)  
+    message = Column(Text)  
+
 class GeoBase(Base):
     __tablename__ = "geobase"
     id = Column(BigInteger, primary_key=True)
@@ -195,12 +205,62 @@ class AccessDB:
                 if 'FULLRESOLVE' in self.storage['launch_zones_resolve']:
                     AccessDB.InsertTimeresolve(self, self.storage['launch_zones_resolve']['FULLRESOLVE'], False)
     
+            if 'launch_healthcheck' in self.storage:
+                    AccessDB.UpdateHealthcheck(self)
+
             if 'geocheck' in self.storage:
                     AccessDB.InsertGeostate(self, self.storage['geocheck'])
             
             if 'initgeo' in self.storage:
                     AccessDB.InsertGeobase(self, self.storage['initgeo'])
 
+    def UpdateHealthcheck(self):
+        try:
+            for data in self.storage['launch_healthcheck']:
+                check = (select(Healthcheck.status, Healthcheck.message)
+                            .filter(Healthcheck.domain == data['domain'])
+                            .filter(Healthcheck.node == self.node))
+                check = self.conn.execute(check).fetchone()
+                if check:
+                    if not data['message']:
+                        stmt = (update(Healthcheck).values(
+                            ts = getnow(self.timedelta),
+                            status = 1,
+                            address = data['address'],
+                            message = None
+                            ).filter(Healthcheck.domain == data['domain'])
+                            .filter(Healthcheck.node == self.node)
+                        )
+                        if check[0] != 1:
+                            AccessDB.InsertLogs(self, 'INFO', 'healthcheck:', f"{data['domain']} is OK.")
+                    else:
+                        stmt = (update(Healthcheck).values(
+                            status = 0,
+                            address = data['address'],
+                            message = data['message']
+                            ).filter(Healthcheck.domain == data['domain'])
+                            .filter(Healthcheck.node == self.node)
+                        )
+                        if check[0] == 1 and check[1] != data['message']:
+                            AccessDB.InsertLogs(self, 'ERROR', 'healthcheck', f"{data['domain']} is bad: {data['message']}.")
+                else:
+                    if data['message']:
+                        status = 0
+                    else: 
+                        status = 1
+                        AccessDB.InsertLogs(self, 'ERROR', 'healthcheck', f"{data['domain']} is bad: {data['message']}.")
+                    stmt = insert(Healthcheck).values(
+                        ts= getnow(self.timedelta),
+                        node = self.node,
+                        domain = data['domain'],
+                        status = status,
+                        address = data['address'],
+                        message = data['message'],
+                        )
+                self.conn.execute(stmt)
+            self.conn.commit()
+        except:
+            logging.exception('UPDATE Healthcheck TABLE:')
 
     def InsertLogs(self, level, object, message):
         try:

@@ -10,5 +10,9 @@
     "example":
         [
             "example.com"
+        ],
+    "yandex":
+        [
+            "yandex.ru"
         ]
 }

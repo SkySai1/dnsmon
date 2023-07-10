@@ -1,0 +1,5 @@
+{
+    "microsoft.com": ["http", "https"],
+    "example.com": ["http", "https"],
+    "google.com": ["http", "https"]
+}
