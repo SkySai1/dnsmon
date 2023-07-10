@@ -3,57 +3,29 @@ import os
 import configparser
 import sys
 import uuid
-_OPTIONS =[
-    'node',
-    'timeout',
-    'short-timeout',
-    'refresh',
-    'timedelta',
-    'debug',
-    'zones',
-    'domains',
-    'nameservers',
-    'publicns',
-    'dbuser',
-    'dbpass',
-    'dbhost',
-    'dbport',
-    'dbname',
-    'token',
-    'count',
-    'sleep',
-    'keep',
-    'storage'
-]
+import logging
+_OPTIONS ={
+    'GENERAL': ['debug', 'maxthreads'],
+    'RESOLVE': ['timeout', 'retry'],
+    'RECURSION': ['timeout', 'maxdepth', 'retry'],
+    'FILES': ['zones', 'domains', 'nameservers', 'publicns'],
+    'DATABASE': ['node', 'dbuser', 'dbpass', 'dbhost', 'dbport', 'dbname', 'storagetime', 'timedelta'],
+    'GEO': ['maxcities', 'maxservers', 'retry', 'timeout', 'sleep', 'keep', 'initcount']
+}
 
 def getconf(path):
     config = configparser.ConfigParser()
     config.read(path)
-    parsed = {}
-    for section in config.sections():
-        for key in config[section]:
-            if key in _OPTIONS:
-                parsed[key] = config[section][key]
-    parsed = filter(parsed)
-    return parsed
-
-def filter(config):
-    config['debug'] = int(config['debug'])
-    config['timeout'] = float(config['timeout'])
-    config['short-timeout'] = float(config['short-timeout'])
-    config['zones'] = os.path.abspath(config['zones'])
-    config['domains'] = os.path.abspath(config['domains'])
-    config['nameservers'] = os.path.abspath(config['nameservers'])
-    config['publicns'] = os.path.abspath(config['publicns'])
-    config['timedelta'] = int(config['timedelta'])
-    config['refresh'] = float(config['refresh'])
-    config['token'] = str(config['token'])
-    config['count'] = int(config['count'])
-    config['sleep'] = float(config['count'])
-    config['keep'] = int(config['keep'])
-    config['storage'] = int(config['storage'])
-    return config
-
+    bad = []
+    try:
+        for section in _OPTIONS:
+            for key in _OPTIONS[section]:
+                if config.has_option(section, key) is not True: bad.append(f'Bad config file: missing key - {key} in {section} section')
+        if bad: raise Exception("\n".join(bad))
+        return config
+    except Exception as e:
+        print(e)
+        sys.exit()
 
 def createconf(where, what:configparser.ConfigParser):
     with open(where, 'w+') as f:
@@ -65,35 +37,44 @@ def deafultconf():
     DBUser = str(input('Input USER of your Data Base:\n'))
     DBPass = str(input('Input PASSWORD of your Data Base\'s user:\n'))
     DBName = str(input('Input BASENAME of your Data Base\n'))
-    config['DEFAULT'] = {
+    config['GENERAL'] = {
         'debug': 0,
-        'timeout': 3,
-        'timedelta': 3,
-        'refresh': 10,
-        'node': "%s"%uuid.uuid4()
+        'maxthreads': 10,
+    }
+    config['RESOLVE'] = {
+        'timeout': 0.3,
+        'retry': 3
     }
     config['RECURSION'] = {
-        "short-timeout": 0.05
+        "timeout": 0.1,
+        "maxdepth": 30,
+        "retry": 3
     }
     config['FILES'] = {
         "zones": "./jsons/zones.example.json",
         "domains": "./jsons/domains.example.json",
         "nameservers": "./jsons/nslist.example.json",
+        "healthcheck": "./jsons/healthcheck.example.json",
         "publicns": "./jsons/ns_storage.json",
     }
     config['DATABASE'] = {
+        "node": "%s"%uuid.uuid4(),
         "dbuser": DBUser,
         "dbpass": DBPass,
         "dbhost": DBHost,
         "dbport": 5432,
         "dbname": DBName,
-        "storage": 2592000
+        "storagetime": 2592000,
+        "timedelta": 3,
     }
     config['GEO'] = {
-        "token": '',
-        "count": 100,
+        "maxcities": 2,
+        "maxservers": 2,
+        'retry': 2,
+        "timeout": 1,
         "sleep": 50,
         "keep": 600,
+        "initcount": 100
     }
     return config
 

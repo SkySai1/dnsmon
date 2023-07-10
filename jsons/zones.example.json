@@ -3,12 +3,16 @@
         [
             "google.com"
         ],
-    "microsfot":
+    "microsoft":
         [
             "microsoft.com"
         ],
     "example":
         [
             "example.com"
+        ],
+    "yandex":
+        [
+            "yandex.ru"
         ]
 }

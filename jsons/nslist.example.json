@@ -39,5 +39,13 @@
     "199.43.133.53": [
         "b.iana-servers.net.",
         "example"
-    ]   
+    ],
+    "213.180.193.1": [
+        "ns1.yandex.ru",
+        "yandex"
+    ],
+    "93.158.134.1": [
+        "ns2.yandex.ru",
+        "yandex"
+    ]
 }
