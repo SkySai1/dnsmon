@@ -1,24 +1,31 @@
 import datetime
 import sys
 import logging
+from typing import Any
 import uuid
 import dns.rcode
 import psycopg2.errors
 import sqlalchemy.exc
 from sqlalchemy.orm import declarative_base, Session, scoped_session, sessionmaker
-from sqlalchemy import ForeignKey, engine, Integer, Column, Float, Text, DateTime, SmallInteger, BigInteger, String, create_engine, insert, select, update, delete
+from sqlalchemy import CHAR, ForeignKey, TypeDecorator, engine, Integer, Column, Float, Text, DateTime, SmallInteger, BigInteger, String, create_engine, insert, select, update, delete
 from sqlalchemy.dialects.postgresql import UUID
 
 def enginer(_CONF):
+    connector = _CONF['DATABASE']['engine']
     dbuser = _CONF['DATABASE']['dbuser']
     dbpass = _CONF['DATABASE']['dbpass']
     dbhost = _CONF['DATABASE']['dbhost']
     dbport = _CONF['DATABASE']['dbport']
     dbname = _CONF['DATABASE']['dbname']
-    try:  
+    try:
+        if connector == 'pgsql': 
+            connector = "postgresql+psycopg2"
+            global _dbuuid
+            _dbuuid = uuid.uuid4
+        elif connector == 'mysql': connector = "mysql+mysqlconnector"  
         engine = create_engine(
-            "postgresql+psycopg2://%s:%s@%s:%s/%s" % (
-                dbuser, dbpass, dbhost, dbport, dbname
+            "%s://%s:%s@%s:%s/%s" % (
+                connector, dbuser, dbpass, dbhost, dbport, dbname
             ),
             connect_args={'connect_timeout': 5},
             pool_pre_ping=True
@@ -30,6 +37,39 @@ def enginer(_CONF):
         sys.exit()
         
 Base = declarative_base()
+
+class GUID(TypeDecorator):
+    """Platform-independent GUID type.
+
+    Uses Postgresql's UUID type, otherwise uses
+    CHAR(32), storing as stringified hex values.
+
+    """
+    impl = CHAR
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == 'postgresql':
+            return dialect.type_descriptor(UUID())
+        else:
+            return dialect.type_descriptor(CHAR(36))
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return value
+        elif dialect.name == 'postgresql':
+            return str(value)
+        else:
+            if not isinstance(value, uuid.UUID):
+                return "%.32x" % uuid.UUID(value)
+            else:
+                # hexstring
+                return "%.32x" % value.int
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return value
+        else:
+            return uuid.UUID(value)
 
 class Nodes(Base):
     __tablename__ = "nodes"
@@ -57,21 +97,22 @@ class Zones(Base):
     serial = Column(Integer)
     message = Column(Text)
 
-class FullResolve(Base):  
+class FullResolve(Base): 
     __tablename__ = "fullresolve" 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
     node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
     ts = Column(DateTime(timezone=True), nullable=False)
     zone = Column(String(255), nullable=False)  
     rtime = Column(Float)
 
-class ShortResolve(Base):  
+class ShortResolve(Base):
     __tablename__ = "shortresolve" 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
     node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
     ts = Column(DateTime(timezone=True), nullable=False)
     server = Column(String(255), nullable=False)  
     rtime = Column(Float)
+
 
 class Servers(Base):  
     __tablename__ = "servers" 
@@ -82,28 +123,18 @@ class Servers(Base):
     status = Column(SmallInteger, nullable=False)
     message = Column(Text)
 
-class Healthcheck(Base):
-    __tablename__ = 'healthcheck'
-    id = Column(BigInteger, primary_key=True)
-    node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
-    ts = Column(DateTime(timezone=True), nullable=False)
-    domain = Column(String(255), nullable=False)
-    address = Column(String(255))
-    status = Column(SmallInteger, nullable=False)  
-    message = Column(Text)  
-
 class GeoBase(Base):
     __tablename__ = "geobase"
     id = Column(BigInteger, primary_key=True)
-    ip = Column(String, nullable=False, unique = True)
+    ip = Column(String(255), nullable=False, unique = True)
     latitude = Column(Float) # <- First value in coordinates
     longitude = Column(Float) # <- Second value in coordinates
-    country = Column(String)
-    city = Column(String)
+    country = Column(String(255))
+    city = Column(String(255, collation='utf8_general_ci'))
 
 class GeoState(Base):  
     __tablename__ = "geostate" 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
     node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
     ip = Column(String(255), ForeignKey('geobase.ip', ondelete='cascade'), nullable=False)
     ts = Column(DateTime(timezone=True), nullable=False)  
@@ -113,7 +144,7 @@ class GeoState(Base):
 
 class Logs(Base):
     __tablename__ = "logs"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
     node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
     ts = Column(DateTime(timezone=True), nullable=False)
     level = Column(String(255), nullable = False)
@@ -214,6 +245,7 @@ class AccessDB:
  
     def InsertLogs(self, level, object, message):
         try:
+            Logs.id.default = str(uuid.uuid4())
             stmt = (insert(Logs).values(
                 node = self.node,
                 ts = getnow(self.timedelta, 0),
@@ -242,6 +274,7 @@ class AccessDB:
     def InsertGeostate(self, data):
         try:
             if data:
+                GeoState.id.default = str(uuid.uuid4())
                 self.conn.execute(insert(GeoState), data)
                 AccessDB.RemoveGeo(self)
         except:
@@ -259,14 +292,15 @@ class AccessDB:
                 )
                 self.conn.execute(stmt)
                 self.conn.commit()
-        except:
-            logging.exception('INSERT TIMERESOLVE:')
+        except Exception as e:
+            #logging.exception('INSERT TIMERESOLVE:')
+            print(str(e))
 
     def UpdateNS(self, nsstorage):
         try:
             for data in nsstorage:
                 ns = data['ns']
-                message = data['message']    
+                message = ",".join(data['message'])
                 check = (select(Servers.status, Servers.message)
                          .filter(Servers.server == ns)
                          .filter(Servers.node == self.node))
@@ -491,9 +525,8 @@ class AccessDB:
         try:
             stmt = (delete(GeoState)
                     .filter(GeoState.ts <= getnow(self.timedelta, -self.keep))
-                    .returning(GeoState.ip)
             )
-            result = self.conn.scalars(stmt).all()
+            self.conn.execute(stmt)
             self.conn.commit()
         except:
             logging.exception('Remove stats from GeoState')

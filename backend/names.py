@@ -1,5 +1,6 @@
 from multiprocessing import Pipe
 import random
+import uuid
 import dns.message
 import dns.rdatatype
 import dns.rcode
@@ -55,6 +56,7 @@ class Zones:
     def __init__(self, _CONF):
         self.node = _CONF['DATABASE']['node']
         self.timedelta = float(_CONF['DATABASE']['timedelta'])
+        self.engine = _CONF['DATABASE']['engine']
 
     def parse(self, data):
         zones = {}

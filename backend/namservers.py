@@ -1,5 +1,6 @@
 from multiprocessing import Pipe
 from statistics import mean
+import uuid
 from backend.accessdb import getnow, make_fqdn
 from threading import Thread, BoundedSemaphore
 import dns.message

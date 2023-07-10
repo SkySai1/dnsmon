@@ -105,7 +105,7 @@ class Available:
                     'ts': getnow(self.timedeilta),
                     'domain': s[2],
                     'state': s[0].result[0],
-                    'result': s[0].result[1]
+                    'result': ",".join(s[0].result[1])
                 })
             #print(s[0].result, s[1]['latitude'], s[1]['longitude'])
         child.send(storage)

@@ -9,7 +9,7 @@ _OPTIONS ={
     'RESOLVE': ['timeout', 'retry'],
     'RECURSION': ['timeout', 'maxdepth', 'retry'],
     'FILES': ['zones', 'domains', 'nameservers', 'publicns'],
-    'DATABASE': ['node', 'dbuser', 'dbpass', 'dbhost', 'dbport', 'dbname', 'storagetime', 'timedelta'],
+    'DATABASE': ['engine','node', 'dbuser', 'dbpass', 'dbhost', 'dbport', 'dbname', 'storagetime', 'timedelta'],
     'GEO': ['maxcities', 'maxservers', 'retry', 'timeout', 'sleep', 'keep', 'initcount']
 }
 
@@ -32,7 +32,7 @@ def createconf(where, what:configparser.ConfigParser):
         what.write(f)
 
 def deafultconf():
-    config = configparser.ConfigParser()
+    config = configparser.ConfigParser(allow_no_value=True)
     DBHost = str(input('Input HOSTNAME of your Data Base:\n'))    
     DBUser = str(input('Input USER of your Data Base:\n'))
     DBPass = str(input('Input PASSWORD of your Data Base\'s user:\n'))
@@ -58,13 +58,17 @@ def deafultconf():
         "publicns": "./jsons/ns_storage.json",
     }
     config['DATABASE'] = {
+        ";Possible values of engine: pgsql, mysql": None,
+        "engine" : 'pgsql',
         "node": "%s"%uuid.uuid4(),
         "dbuser": DBUser,
         "dbpass": DBPass,
         "dbhost": DBHost,
         "dbport": 5432,
         "dbname": DBName,
+        ";Time to keeping data in seconds": None,
         "storagetime": 2592000,
+        ";for mysql better keep timedelta as 0, for pgsql as your region timezone": None,
         "timedelta": 3,
     }
     config['GEO'] = {
