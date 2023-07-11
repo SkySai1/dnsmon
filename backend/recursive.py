@@ -87,7 +87,7 @@ class Recursive:
         except:
             result = dns.message.make_response(query)
             result.set_rcode(5)
-            #logging.exception(f'Resolve: #1, qname - {result.question[0].name}')
+            logging.exception(f'Resolve: #1, qname - {result.question[0].name}')
             return result, ns
         
         # -Trying to get answer from specifing nameserver-
@@ -95,19 +95,24 @@ class Recursive:
             for i in range(self.retry):
                 try:
                     result = dns.query.udp(query, ns, self.timeout)
+                    if _DEBUG in [2,3]: print(result,'\n\n')  # <- SOME DEBUG
+                    if not result:
+                        result = dns.message.make_response(query)
+                        result.set_rcode(2)
+                        return result, ns
+                    if query.id != result.id:
+                        raise Exception('ID mismatch!')
                     break
                 except dns.exception.Timeout as e:
+                    if _DEBUG in [2,3]:
+                        print(i, str(e))
                     pass
                 except:
                     result = dns.message.make_response(query)
                     result.set_rcode(4)
                     return result, ns
-            if query.id != result.id:
-                raise Exception('ID mismatch!')
-            if not result: raise Exception
-            if _DEBUG in [2,3]: print(result,'\n\n')  # <- SOME DEBUG
         except Exception:
-            #logging.exception('RESOLVE')
+            logging.exception('RESOLVE')
             result = dns.message.make_response(query)
             result.set_rcode(2)
             return result, ns
@@ -115,7 +120,7 @@ class Recursive:
         if dns.flags.AA in result.flags: 
             return result, ns # <- If got a rdata then return it
         
-        if result.additional:
+        '''if result.additional:
             random.shuffle(result.additional)
             for rr in result.additional:
                 ns = str(rr[0])
@@ -123,12 +128,20 @@ class Recursive:
                     result, ns = Recursive.resolve(self,query, ns, depth)
                     if result and result.rcode() in [
                         dns.rcode.NOERROR]: return result, ns
-            return None, ns
+            return None, ns'''
 
-        elif result.authority:
-            random.shuffle(result.authority)
+        if not result.answer and result.authority:
             for authlist in result.authority:
                 for rr in authlist.processing_order():
+                    for add in result.additional:
+                        if str(rr) == add.name.to_text():
+                            ns = str(add[0])
+                            if ipaddress.ip_address(ns).version == 4:
+                                result, ns = Recursive.resolve(self,query, ns, depth)
+                                if result and result.rcode() in [
+                                    dns.rcode.NOERROR]: 
+                                    return result, ns
+                            return None, ns
                     qname = dns.name.from_text(str(rr))
                     nsquery = dns.message.make_query(qname, dns.rdatatype.A, dns.rdataclass.IN)
                     for ns in _ROOT:
@@ -175,15 +188,17 @@ class GetNS(threading.Thread):
         self.result = R.resolve(self.query, self.nslist, self.depth, self.udp)
 
 if __name__ == "__main__":
+    import os
     udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     conf = {
         "resolver": None,
         "depth": 30
     }
-    udp.bind(('127.0.0.2', 5300))
-    R = Recursive(timeout=0.05)
+    udp.bind(('127.0.0.2', 5301))
+    R = Recursive(timeout=0.2,depth=100)
     while True:
         data, client  = udp.recvfrom(512)
+        os.system('/usr/bin/clear')
         message = dns.message.from_wire(data)
         answer, ns, rt = R.recursive(message)
         udp.sendto(answer.to_wire(message.origin),client)
