@@ -142,7 +142,6 @@ class Recursive:
                                 if result and result.rcode() in [
                                     dns.rcode.NOERROR]: 
                                     return result, ns
-                            return None, ns
                     qname = dns.name.from_text(str(rr))
                     nsquery = dns.message.make_query(qname, dns.rdatatype.A, dns.rdataclass.IN)
                     for ns in _ROOT:
@@ -189,6 +188,7 @@ class GetNS(threading.Thread):
         self.result = R.resolve(self.query, self.nslist, self.depth, self.udp)
 
 if __name__ == "__main__":
+    _DEBUG = 3
     import os
     udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     conf = {
