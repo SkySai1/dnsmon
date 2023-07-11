@@ -1,18 +1,17 @@
 {
     "google":
         [
-            "google.com"
+            "google.com",
+            "l.google.com.",
+            "youtube.com."
         ],
     "microsoft":
         [
             "microsoft.com"
+            
         ],
-    "example":
+    "microsoft-office":
         [
-            "example.com"
-        ],
-    "yandex":
-        [
-            "yandex.ru"
+            "tm-4.office.com."
         ]
 }
