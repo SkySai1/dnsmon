@@ -126,6 +126,7 @@ class Recursive:
             return None, ns
 
         elif result.authority:
+            random.shuffle(result.authority)
             for authlist in result.authority:
                 for rr in authlist.processing_order():
                     qname = dns.name.from_text(str(rr))
