@@ -15,17 +15,17 @@ import dns.flags
 import logging
 
 _ROOT = [
-    "198.41.0.4",           #a.root-servers.net.
+    #"198.41.0.4", <- bad root ns  #a.root-servers.net.
     "199.9.14.201",         #b.root-servers.net.
     "192.33.4.12",          #c.root-servers.net.
     "199.7.91.13",          #d.root-servers.net.
     "192.203.230.10",       #e.root-servers.net.
-    "192.5.5.241",          #f.root-servers.net.
+    #"192.5.5.241", <- bad root ns         #f.root-servers.net.
     "192.112.36.4",         #g.root-servers.net.
     "198.97.190.53",        #h.root-servers.net.
     "192.36.148.17",        #i.root-servers.net.
     "192.58.128.30",        #j.root-servers.net.
-    "193.0.14.129",         #k.root-servers.net.
+    #"193.0.14.129", <-bad root ns        #k.root-servers.net.
     "199.7.83.42",          #l.root-servers.net.
     "202.12.27.33"          #m.root-servers.net.
 ]
@@ -64,6 +64,7 @@ class Recursive:
             # - Internal resolving if it is empty
             try:
                 start = time.time()
+                random.shuffle(_ROOT)
                 for i in range(2):
                     result, auth = Recursive.resolve(self, query, _ROOT[i], 0)
                     if result and dns.flags.AA in result.flags: break
@@ -195,7 +196,7 @@ if __name__ == "__main__":
         "depth": 30
     }
     udp.bind(('127.0.0.2', 5301))
-    R = Recursive(timeout=0.2,depth=100)
+    R = Recursive(timeout=0.3,depth=100)
     while True:
         data, client  = udp.recvfrom(512)
         os.system('/usr/bin/clear')
