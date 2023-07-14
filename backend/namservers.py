@@ -51,7 +51,9 @@ class NScheck(Thread):
                         error = dns.rcode.to_text(self.answer.rcode())
                         self.data.append(f"{zone}: {error}")
                     else:
-                        serial = self.answer.answer[0][0].serial
+                        if self.answer:
+                            serial = self.answer.answer[0][0].serial
+                        else: serial = 0
                         self.empty = False
                         self.serials[zone]['serial'] = int(serial)
 
