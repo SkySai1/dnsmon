@@ -28,16 +28,16 @@ class NScheck(Thread):
         self.debug = debug
  
     def run(self):
-        self.data = []
+        self.value = None
         rtime = []
         self.serials = {}
-        self.empty = True
         self.state = False
+        self.bad = None
         for group in self.zones:
             if group != self.group: continue
             for zone in make_fqdn(self.zones[group]):
                 self.serials[zone] = {}
-                #time.sleep(0.1)
+                error = None
                 try:
                     qname = dns.name.from_text(zone)
                     query = dns.message.make_query(qname, dns.rdatatype.SOA)
@@ -45,29 +45,33 @@ class NScheck(Thread):
                         try:
                             self.answer = dns.query.udp(query, self.ns, self.timeout)
                             self.state = True
-                            break
-                        except: pass
-                    if self.answer.rcode() is not dns.rcode.NOERROR:
-                        error = dns.rcode.to_text(self.answer.rcode())
-                        self.data.append(f"{zone}: {error}")
-                    else:
-                        if self.answer:
-                            serial = self.answer.answer[0][0].serial
-                        else: serial = 0
-                        self.empty = False
+                        except Exception as e: 
+                            self.bad = e
+                            pass
+                    if hasattr(self, 'answer'):
+                        if self.answer.rcode() is not dns.rcode.NOERROR:
+                            error = dns.rcode.to_text(self.answer.rcode())
+                        serial = self.answer.answer[0][0].serial
+                        self.serials[zone]['status'] = self.answer.rcode()
                         self.serials[zone]['serial'] = int(serial)
+                        #self.data.append(f"{zone}: {error}")
 
-                    self.serials[zone]['status'] = self.answer.rcode()
+                    else:
+                        self.serials[zone]['status'] = str(self.bad)
+                        self.serials[zone]['serial'] = 0
+
                 except Exception as e:
+                    logging.exception('NScheck')
                     self.serials[zone]['status'] = str(e)
-                    self.empty = False
-                    #self.data.append(f"{zone}: {str(e)}")
+                    self.data.append(f"{zone}: {str(e)}")
                     continue
-        if self.state is False:
-            self.data.append(f"this ns ({self.ns}) is unvailable")
+
+            if self.state is False:
+                print(self.ns)
+                self.value = f"({self.ns}) is unvailable"
 
         if self.debug == (2 or 3):
-            print(self.nsname, self.ns, self.empty, self.data)
+            print(self.nsname, self.ns, self.value)
         self.limit.release()
 
 

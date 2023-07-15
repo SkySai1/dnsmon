@@ -300,7 +300,7 @@ class AccessDB:
         try:
             for data in nsstorage:
                 ns = data['ns']
-                message = ",".join(data['message'])
+                message = data['message']
                 check = (select(Servers.status, Servers.message)
                          .filter(Servers.server == ns)
                          .filter(Servers.node == self.node))
@@ -428,7 +428,7 @@ class AccessDB:
                             ).filter(Zones.zone == zone)
                             .filter(Zones.node == self.node)
                         )
-                        if check[0] != 0 and check[1] != message:
+                        if check[0] != 0 or check[1] != message:
                             AccessDB.InsertLogs(self, 'WARNING', 'zone', f"{zone} is bad: {message}.")
                 else:
                     if status == 1: 
