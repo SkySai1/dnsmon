@@ -96,7 +96,6 @@ def launch_ns_and_zones_check(nslist, zones, _CONF, child:Pipe=None):
             
         except:
             logging.exception('Prepare zones data')
-    print(storage)
     storage['ZONES'] = Z.parse(stats)
     child.send(storage)
     logging.info("End NS and zones check")
