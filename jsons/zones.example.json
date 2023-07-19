@@ -1,14 +1,17 @@
 {
     "google":
         [
-            "google.com"
+            "google.com",
+            "l.google.com.",
+            "youtube.com."
         ],
-    "microsfot":
+    "microsoft":
         [
             "microsoft.com"
+            
         ],
-    "example":
+    "microsoft-office":
         [
-            "example.com"
+            "tm-4.office.com."
         ]
 }

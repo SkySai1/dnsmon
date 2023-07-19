@@ -1,4 +1,4 @@
-#!./mon/bin/python3
+#!/etc/dev/dnschecker/mon/bin/python3
 import os
 import configparser
 import sys
@@ -9,28 +9,30 @@ _OPTIONS ={
     'RESOLVE': ['timeout', 'retry'],
     'RECURSION': ['timeout', 'maxdepth', 'retry'],
     'FILES': ['zones', 'domains', 'nameservers', 'publicns'],
-    'DATABASE': ['node', 'dbuser', 'dbpass', 'dbhost', 'dbport', 'dbname', 'storage', 'timedelta'],
-    'GEO': ['maxcities', 'maxservers', 'timeout', 'sleep', 'keep']
+    'DATABASE': ['engine','node', 'dbuser', 'dbpass', 'dbhost', 'dbport', 'dbname', 'storagetime', 'timedelta'],
+    'GEO': ['maxcities', 'maxservers', 'retry', 'timeout', 'sleep', 'keep', 'initcount']
 }
 
 def getconf(path):
     config = configparser.ConfigParser()
     config.read(path)
+    bad = []
     try:
         for section in _OPTIONS:
-            if config.has_section(section) is not True: raise Exception(f'bad section - {section}')
             for key in _OPTIONS[section]:
-                if config.has_option(section, key) is not True: raise Exception(f'bad key in config file - {key}')
+                if config.has_option(section, key) is not True: bad.append(f'Bad config file: missing key - {key} in {section} section')
+        if bad: raise Exception("\n".join(bad))
         return config
-    except:
-        logging.exception('READ CONFIG FILE')
+    except Exception as e:
+        print(e)
+        sys.exit()
 
 def createconf(where, what:configparser.ConfigParser):
     with open(where, 'w+') as f:
         what.write(f)
 
 def deafultconf():
-    config = configparser.ConfigParser()
+    config = configparser.ConfigParser(allow_no_value=True)
     DBHost = str(input('Input HOSTNAME of your Data Base:\n'))    
     DBUser = str(input('Input USER of your Data Base:\n'))
     DBPass = str(input('Input PASSWORD of your Data Base\'s user:\n'))
@@ -52,24 +54,31 @@ def deafultconf():
         "zones": "./jsons/zones.example.json",
         "domains": "./jsons/domains.example.json",
         "nameservers": "./jsons/nslist.example.json",
+        "healthcheck": "./jsons/healthcheck.example.json",
         "publicns": "./jsons/ns_storage.json",
     }
     config['DATABASE'] = {
+        ";Possible values of engine: pgsql, mysql": None,
+        "engine" : 'pgsql',
         "node": "%s"%uuid.uuid4(),
         "dbuser": DBUser,
         "dbpass": DBPass,
         "dbhost": DBHost,
         "dbport": 5432,
         "dbname": DBName,
-        "storage": 2592000,
+        ";Time to keeping data in seconds": None,
+        "storagetime": 2592000,
+        ";for mysql better keep timedelta as 0, for pgsql as your region timezone": None,
         "timedelta": 3,
     }
     config['GEO'] = {
         "maxcities": 2,
         "maxservers": 2,
+        'retry': 2,
         "timeout": 1,
         "sleep": 50,
         "keep": 600,
+        "initcount": 100
     }
     return config
 

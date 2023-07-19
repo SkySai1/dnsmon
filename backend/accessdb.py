@@ -1,24 +1,31 @@
 import datetime
 import sys
 import logging
+from typing import Any
 import uuid
 import dns.rcode
 import psycopg2.errors
 import sqlalchemy.exc
 from sqlalchemy.orm import declarative_base, Session, scoped_session, sessionmaker
-from sqlalchemy import ForeignKey, engine, Integer, Column, Float, Text, DateTime, SmallInteger, BigInteger, String, create_engine, insert, select, update, delete
+from sqlalchemy import CHAR, ForeignKey, TypeDecorator, engine, Integer, Column, Float, Text, DateTime, SmallInteger, BigInteger, String, create_engine, insert, select, update, delete
 from sqlalchemy.dialects.postgresql import UUID
 
 def enginer(_CONF):
+    connector = _CONF['DATABASE']['engine']
     dbuser = _CONF['DATABASE']['dbuser']
     dbpass = _CONF['DATABASE']['dbpass']
     dbhost = _CONF['DATABASE']['dbhost']
     dbport = _CONF['DATABASE']['dbport']
     dbname = _CONF['DATABASE']['dbname']
-    try:  
+    try:
+        if connector == 'pgsql': 
+            connector = "postgresql+psycopg2"
+            global _dbuuid
+            _dbuuid = uuid.uuid4
+        elif connector == 'mysql': connector = "mysql+mysqlconnector"  
         engine = create_engine(
-            "postgresql+psycopg2://%s:%s@%s:%s/%s" % (
-                dbuser, dbpass, dbhost, dbport, dbname
+            "%s://%s:%s@%s:%s/%s" % (
+                connector, dbuser, dbpass, dbhost, dbport, dbname
             ),
             connect_args={'connect_timeout': 5},
             pool_pre_ping=True
@@ -30,6 +37,39 @@ def enginer(_CONF):
         sys.exit()
         
 Base = declarative_base()
+
+class GUID(TypeDecorator):
+    """Platform-independent GUID type.
+
+    Uses Postgresql's UUID type, otherwise uses
+    CHAR(32), storing as stringified hex values.
+
+    """
+    impl = CHAR
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == 'postgresql':
+            return dialect.type_descriptor(UUID())
+        else:
+            return dialect.type_descriptor(CHAR(36))
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return value
+        elif dialect.name == 'postgresql':
+            return str(value)
+        else:
+            if not isinstance(value, uuid.UUID):
+                return "%.32x" % uuid.UUID(value)
+            else:
+                # hexstring
+                return "%.32x" % value.int
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return value
+        else:
+            return uuid.UUID(value)
 
 class Nodes(Base):
     __tablename__ = "nodes"
@@ -57,21 +97,22 @@ class Zones(Base):
     serial = Column(Integer)
     message = Column(Text)
 
-class FullResolve(Base):  
+class FullResolve(Base): 
     __tablename__ = "fullresolve" 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
     node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
     ts = Column(DateTime(timezone=True), nullable=False)
     zone = Column(String(255), nullable=False)  
     rtime = Column(Float)
 
-class ShortResolve(Base):  
+class ShortResolve(Base):
     __tablename__ = "shortresolve" 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
     node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
     ts = Column(DateTime(timezone=True), nullable=False)
     server = Column(String(255), nullable=False)  
     rtime = Column(Float)
+
 
 class Servers(Base):  
     __tablename__ = "servers" 
@@ -85,15 +126,15 @@ class Servers(Base):
 class GeoBase(Base):
     __tablename__ = "geobase"
     id = Column(BigInteger, primary_key=True)
-    ip = Column(String, nullable=False, unique = True)
+    ip = Column(String(255), nullable=False, unique = True)
     latitude = Column(Float) # <- First value in coordinates
     longitude = Column(Float) # <- Second value in coordinates
-    country = Column(String)
-    city = Column(String)
+    country = Column(String(255))
+    city = Column(String(255, collation='utf8_general_ci'))
 
 class GeoState(Base):  
     __tablename__ = "geostate" 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
     node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
     ip = Column(String(255), ForeignKey('geobase.ip', ondelete='cascade'), nullable=False)
     ts = Column(DateTime(timezone=True), nullable=False)  
@@ -103,7 +144,7 @@ class GeoState(Base):
 
 class Logs(Base):
     __tablename__ = "logs"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
     node = Column(String(255), ForeignKey('nodes.node', ondelete='cascade'), nullable=False)
     ts = Column(DateTime(timezone=True), nullable=False)
     level = Column(String(255), nullable = False)
@@ -116,56 +157,57 @@ class AccessDB:
         self.engine = enginer(_CONF)
         self.storage = storage
         self.conf = _CONF
-        self.expire = int(_CONF['DATABASE']['storage'])
+        self.expire = int(_CONF['DATABASE']['storagetime'])
         self.timedelta = int(_CONF['DATABASE']['timedelta'])
         self.keep = int(_CONF['GEO']['keep'])
         self.node = _CONF['DATABASE']['node']
 
 
-    def start(self, dlist, zlist, nslist):
+    def start(self, dlist=None, zlist=None, nslist=None, onlygeo=False):
         with Session(self.engine) as self.conn:
-            # -- Creating new node if it doesnt
-            try:
-                check = self.conn.execute(select(Nodes.node).filter(Nodes.node == self.node)).fetchone()
-                if not check:
-                    self.conn.execute(
-                        insert(Nodes).values(node = self.node)
-                    )
-            except:
-                logging.exception('CREATING NEW NODE:')
+            if onlygeo is False:
+                # -- Creating new node if it doesnt
+                try:
+                    check = self.conn.execute(select(Nodes.node).filter(Nodes.node == self.node)).fetchone()
+                    if not check:
+                        self.conn.execute(
+                            insert(Nodes).values(node = self.node)
+                        )
+                except:
+                    logging.exception('CREATING NEW NODE:')
 
-            # -- Synchronizing domains
-            try:
-                dlist_from_db = AccessDB.GetDomain(self)
-                for d in dlist_from_db:
-                    if not d[0] in dlist:
-                        AccessDB.RemoveDomain(self, d[0])
-            except:
-                logging.exception('DOMAINS SYNC:')
+                # -- Synchronizing domains
+                try:
+                    dlist_from_db = AccessDB.GetDomain(self)
+                    for d in dlist_from_db:
+                        if not d[0] in dlist:
+                            AccessDB.RemoveDomain(self, d[0])
+                except:
+                    logging.exception('DOMAINS SYNC:')
 
-            # -- Synchronizing zones
-            try:
-                zlist_from_db = AccessDB.GetZone(self)
-                for group in zlist:
+                # -- Synchronizing zones
+                try:
+                    zlist_from_db = AccessDB.GetZone(self)
+                    zlist = [zone for group in zlist for zone in zlist[group]]
                     for z in zlist_from_db:
-                        if not z[0] in make_fqdn(zlist[group]):
+                        if not z[0] in make_fqdn(zlist):
                             AccessDB.RemoveZone(self, z[0])
-            except Exception:
-                logging.exception('ZONES SYNC:')
+                except Exception:
+                    logging.exception('ZONES SYNC:')
 
-            # -- Synchronizing NS
-            try:
-                nslist_from_db = AccessDB.GetNS(self)
-                nsnames = []
-                for addr in nslist:
-                    nsnames.append(nslist[addr][0])
+                # -- Synchronizing NS
+                try:
+                    nslist_from_db = AccessDB.GetNS(self)
+                    nsnames = []
+                    for addr in nslist:
+                        nsnames.append(nslist[addr][0])
 
-                for ns in nslist_from_db:
-                    if not ns[0] in nsnames:
-                        AccessDB.RemoveNS(self, ns[0])
-            except Exception:
-                logging.exception('NS SYNC:')
-            self.conn.commit()
+                    for ns in nslist_from_db:
+                        if not ns[0] in nsnames:
+                            AccessDB.RemoveNS(self, ns[0])
+                except Exception:
+                    logging.exception('NS SYNC:')
+                self.conn.commit()
 
             # -- Getting GEO Base
             try:
@@ -175,7 +217,8 @@ class AccessDB:
                 logging.exception('GET GEO')
 
 
-    def parse(self):
+    def parse(self, storage = None):
+        if storage: self.storage = storage
         with Session(self.engine) as self.conn:
             if 'launch_domain_check' in self.storage:
                 if 'DOMAINS' in self.storage['launch_domain_check']:
@@ -192,13 +235,17 @@ class AccessDB:
             if 'launch_zones_resolve' in self.storage:
                 if 'FULLRESOLVE' in self.storage['launch_zones_resolve']:
                     AccessDB.InsertTimeresolve(self, self.storage['launch_zones_resolve']['FULLRESOLVE'], False)
-    
+
             if 'geocheck' in self.storage:
                     AccessDB.InsertGeostate(self, self.storage['geocheck'])
+            
+            if 'initgeo' in self.storage:
+                    AccessDB.InsertGeobase(self, self.storage['initgeo'])
 
-
+ 
     def InsertLogs(self, level, object, message):
         try:
+            Logs.id.default = str(uuid.uuid4())
             stmt = (insert(Logs).values(
                 node = self.node,
                 ts = getnow(self.timedelta, 0),
@@ -215,19 +262,10 @@ class AccessDB:
         except:
             logging.exception('INSERT LOGS:')
     
-    def InsertGeobase(self, ip, lat, long, city, country):
-        with Session(self.engine) as conn:
+    def InsertGeobase(self, data):
             try:
-                stmt = (insert(GeoBase).values(
-                    ip = ip,
-                    latitude = lat,
-                    longitude = long,
-                    city = city,
-                    country = country
-                ))
-                conn.execute(stmt)
-                conn.commit()
-
+                self.conn.execute(insert(GeoBase), data)
+                self.conn.commit()
             except sqlalchemy.exc.IntegrityError:
                 pass
             except Exception as e:
@@ -236,6 +274,7 @@ class AccessDB:
     def InsertGeostate(self, data):
         try:
             if data:
+                GeoState.id.default = str(uuid.uuid4())
                 self.conn.execute(insert(GeoState), data)
                 AccessDB.RemoveGeo(self)
         except:
@@ -253,14 +292,15 @@ class AccessDB:
                 )
                 self.conn.execute(stmt)
                 self.conn.commit()
-        except:
-            logging.exception('INSERT TIMERESOLVE:')
+        except Exception as e:
+            #logging.exception('INSERT TIMERESOLVE:')
+            print(str(e))
 
     def UpdateNS(self, nsstorage):
         try:
             for data in nsstorage:
                 ns = data['ns']
-                message = data['message']    
+                message = data['message']
                 check = (select(Servers.status, Servers.message)
                          .filter(Servers.server == ns)
                          .filter(Servers.node == self.node))
@@ -388,7 +428,7 @@ class AccessDB:
                             ).filter(Zones.zone == zone)
                             .filter(Zones.node == self.node)
                         )
-                        if check[0] != 0 and check[1] != message:
+                        if check[0] != 0 or check[1] != message:
                             AccessDB.InsertLogs(self, 'WARNING', 'zone', f"{zone} is bad: {message}.")
                 else:
                     if status == 1: 
@@ -485,9 +525,8 @@ class AccessDB:
         try:
             stmt = (delete(GeoState)
                     .filter(GeoState.ts <= getnow(self.timedelta, -self.keep))
-                    .returning(GeoState.ip)
             )
-            result = self.conn.scalars(stmt).all()
+            self.conn.execute(stmt)
             self.conn.commit()
         except:
             logging.exception('Remove stats from GeoState')
@@ -503,5 +542,5 @@ def make_fqdn(data):
     for d in data:
         if '.' != d[-1]:
             d += '.'
-        new_list.append(d)
+        new_list.append(d.lower().encode().decode('idna'))
     return new_list

@@ -64,7 +64,7 @@ def launch_domain_check(domains_list, ns_list, _CONF, child:Pipe):
     if ns_stats: 
         storage['SHORTRESOLVE'] = NS.resolvetime(ns_stats)
     child.send(storage)
-    logging.info("Ended domains check")
+    logging.info("End domains check")
     #for ns in ns_stats: print(ns)
 
 # --NameServer checking
@@ -87,16 +87,18 @@ def launch_ns_and_zones_check(nslist, zones, _CONF, child:Pipe=None):
         t.join()
         ns = t.ns
         if ns in nslist: ns = nslist[ns][0]
-        if t.empty is False:
+        try:
             storage['NS'].append({
                 'ns': ns,
-                'message':t.data
+                'message':t.value
             })
-            #NS.parse(ns, t.data, db)
             stats[ns] = t.serials
+            
+        except:
+            logging.exception('Prepare zones data')
     storage['ZONES'] = Z.parse(stats)
     child.send(storage)
-    logging.info("Ended NS and zones check")
+    logging.info("End NS and zones check")
 
 # --Zones Trace Resolve
 def launch_zones_resolve(zones, _CONF, child:Pipe):
@@ -131,7 +133,7 @@ def launch_zones_resolve(zones, _CONF, child:Pipe):
     if zn_stats: 
         storage['FULLRESOLVE'] = Z.resolvetime(zn_stats)
     child.send(storage)
-    logging.info("Ended zone resolving")
+    logging.info("End zone resolving")
 
 def get_list(path):
     with open(path, "r") as f:
@@ -164,14 +166,18 @@ def PipeParallel(data):
     except Exception:
         logging.exception('PROCCESSING')
 
-def handler(event=None, context=None):
+def handler(*args, **kwargs):
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-
     # -- Get options from config file --
     logging.info("DNSCHECKER IS RAN!!!")
     try:
         thisdir = os.path.dirname(os.path.abspath(__file__))
-        _CONF = getconf(thisdir+'/config.conf')
+        if 'cpath' in kwargs and kwargs['cpath'] is not None:
+                path=kwargs['cpath']
+        else:
+            path=thisdir+'/config.conf'
+        logging.info('Used config file \'%s\'' % path)
+        _CONF = getconf(path)
         global _DEBUG
         _DEBUG = int(_CONF['GENERAL']['debug'])
         global _MAXTHREADS
@@ -211,13 +217,21 @@ def handler(event=None, context=None):
     ]
     try:
         STORAGE = PipeParallel(processes)
-        #print(STORAGE['geocheck'])
         DB = AccessDB(_CONF, STORAGE)
         DB.parse()
     except KeyboardInterrupt:
         pass
+    except:
+        logging.exception('Insert data to DB:')
     finally:
         logging.info("DNSCHECKER IS END.")
 
 if __name__ == "__main__":
-    handler() # <- for manual start
+    if sys.argv[1:]:
+        path = os.path.abspath(sys.argv[1])
+        if os.path.exists(path):
+            handler(cpath=path) # <- for manual start
+        else:
+            print('Bad config file')
+    else:
+        handler(cpath=None)
