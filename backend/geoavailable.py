@@ -3,7 +3,6 @@ import logging
 from multiprocessing import Pipe
 import random
 from threading import Thread, BoundedSemaphore
-from types import NoneType
 import dns.message
 import dns.query
 import dns.rcode
