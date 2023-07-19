@@ -121,7 +121,7 @@ class Recursive:
         if dns.flags.AA in result.flags: 
             return result, ns # <- If got a rdata then return it
         
-        '''if result.additional:
+        if result.additional:
             random.shuffle(result.additional)
             for rr in result.additional:
                 ns = str(rr[0])
@@ -129,19 +129,19 @@ class Recursive:
                     result, ns = Recursive.resolve(self,query, ns, depth)
                     if result and result.rcode() in [
                         dns.rcode.NOERROR]: return result, ns
-            return None, ns'''
+            return None, ns
 
         if not result.answer and result.authority:
             for authlist in result.authority:
                 for rr in authlist.processing_order():
-                    for add in result.additional:
+                    '''for add in result.additional:
                         if str(rr) == add.name.to_text():
                             ns = str(add[0])
                             if ipaddress.ip_address(ns).version == 4:
                                 result, ns = Recursive.resolve(self,query, ns, depth)
                                 if result and result.rcode() in [
                                     dns.rcode.NOERROR]: 
-                                    return result, ns
+                                    return result, ns'''
                     qname = dns.name.from_text(str(rr))
                     nsquery = dns.message.make_query(qname, dns.rdatatype.A, dns.rdataclass.IN)
                     for ns in _ROOT:
